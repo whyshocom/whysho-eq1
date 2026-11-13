@@ -2,7 +2,7 @@ WHYSHO EQ1 — END USER LICENSE AGREEMENT
 
 IMPORTANT — READ CAREFULLY. This End User License Agreement ("Agreement")
 is a legal agreement between you (either an individual or a single entity,
-"You") and Whysho ("Whysho", "we", "us") for the Whysho EQ1 audio plug-in
+"You") and whysho ("whysho", "we", "us") for the whysho EQ1 audio plug-in
 software, associated media, and accompanying documentation (collectively,
 the "Software").
 
@@ -16,7 +16,7 @@ before any public commercial release.
 
 1. LICENSE GRANT
    Subject to Your compliance with this Agreement and payment of all
-   applicable license fees, Whysho grants You a non-exclusive,
+   applicable license fees, whysho grants You a non-exclusive,
    non-transferable license to install and use the Software on computers
    that You own or control, solely for Your own music production and
    audio-processing purposes.
@@ -31,13 +31,13 @@ before any public commercial release.
    or obscure any proprietary notices on or in the Software.
 
 3. OWNERSHIP
-   The Software is licensed, not sold. Whysho and its licensors retain all
+   The Software is licensed, not sold. whysho and its licensors retain all
    right, title, and interest in and to the Software, including all
    intellectual property rights therein.
 
 4. UPDATES
    Any updates, upgrades, or supplements to the Software provided by
-   Whysho are governed by this Agreement unless accompanied by separate
+   whysho are governed by this Agreement unless accompanied by separate
    terms.
 
 5. TERMINATION
@@ -61,12 +61,12 @@ before any public commercial release.
 
 8. GOVERNING LAW
    This Agreement shall be governed by and construed in accordance with
-   the laws applicable at Whysho's principal place of business, without
+   the laws applicable at whysho's principal place of business, without
    regard to its conflict-of-laws provisions.
 
 9. ENTIRE AGREEMENT
-   This Agreement constitutes the entire agreement between You and Whysho
+   This Agreement constitutes the entire agreement between You and whysho
    relating to the Software and supersedes all prior or contemporaneous
    understandings regarding such subject matter.
 
-Copyright (c) Whysho. All rights reserved.
+Copyright (c) whysho. All rights reserved.

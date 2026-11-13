@@ -8,7 +8,7 @@ using namespace wsho::gui;
 
 LicenseDialog::LicenseDialog (WhyshoEQAudioProcessor& p) : proc (p)
 {
-    title.setText ("Whysho EQ1 - Activation", juce::dontSendNotification);
+    title.setText ("whysho EQ1 - Activation", juce::dontSendNotification);
     title.setFont (juce::Font (18.0f, juce::Font::bold));
     title.setColour (juce::Label::textColourId, theme().text);
     addAndMakeVisible (title);

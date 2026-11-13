@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Whysho EQ1 — macOS installer distribution definition (productbuild).
+  whysho EQ1 — macOS installer distribution definition (productbuild).
 
   This is a TEMPLATE. scripts/build-macos-installer.sh substitutes the
   __VERSION__ tokens and resolves the component package references at build
@@ -15,7 +15,7 @@
   license.txt is a copy of packaging/EULA.txt.
 -->
 <installer-gui-script minSpecVersion="2">
-    <title>Whysho EQ1</title>
+    <title>whysho EQ1</title>
 
     <!-- Universal2: install on both Intel and Apple Silicon. -->
     <options customize="allow" require-scripts="false" rootVolumeOnly="true"
@@ -46,12 +46,12 @@
     </choices-outline>
 
     <choice id="choice_vst3" title="VST3 Plug-In"
-            description="Install the Whysho EQ1 VST3 plug-in to /Library/Audio/Plug-Ins/VST3.">
+            description="Install the whysho EQ1 VST3 plug-in to /Library/Audio/Plug-Ins/VST3.">
         <pkg-ref id="com.whysho.eq1.vst3"/>
     </choice>
 
     <choice id="choice_au" title="Audio Unit (AU)"
-            description="Install the Whysho EQ1 Audio Unit to /Library/Audio/Plug-Ins/Components.">
+            description="Install the whysho EQ1 Audio Unit to /Library/Audio/Plug-Ins/Components.">
         <pkg-ref id="com.whysho.eq1.au"/>
     </choice>
 

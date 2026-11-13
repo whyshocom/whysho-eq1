@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Derive the project version for Whysho EQ1 packaging (PowerShell equivalent of version.sh).
+    Derive the project version for whysho EQ1 packaging (PowerShell equivalent of version.sh).
 
 .DESCRIPTION
     Resolution order:

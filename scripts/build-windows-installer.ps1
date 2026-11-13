@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Build the Whysho EQ1 Windows installer (.exe) with Inno Setup (ISCC).
+    Build the whysho EQ1 Windows installer (.exe) with Inno Setup (ISCC).
 
 .DESCRIPTION
     Resolves the version (scripts/version.ps1 unless -Version is given), locates
@@ -61,7 +61,7 @@ $BuildDir  = [System.IO.Path]::GetFullPath($BuildDir)
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $IssFile   = Join-Path $RepoRoot 'packaging\windows\installer.iss'
 
-Write-Host "==> Whysho EQ1 Windows installer"
+Write-Host "==> whysho EQ1 Windows installer"
 Write-Host "    Version   : $Version"
 Write-Host "    RepoRoot  : $RepoRoot"
 Write-Host "    BuildDir  : $BuildDir"
@@ -71,8 +71,8 @@ New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 # --- Sanity-check expected artefacts ------------------------------------------
 $ArtefactsDir  = Join-Path $BuildDir 'WhyshoEQ1_artefacts\Release'
-$Vst3Bundle    = Join-Path $ArtefactsDir 'VST3\Whysho EQ1.vst3'
-$StandaloneExe = Join-Path $ArtefactsDir 'Standalone\Whysho EQ1.exe'
+$Vst3Bundle    = Join-Path $ArtefactsDir 'VST3\whysho EQ1.vst3'
+$StandaloneExe = Join-Path $ArtefactsDir 'Standalone\whysho EQ1.exe'
 
 foreach ($p in @($Vst3Bundle, $StandaloneExe)) {
     if (-not (Test-Path $p)) {

@@ -8,7 +8,7 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
 {
     setLookAndFeel (&lnf);
 
-    brand.setText ("WHYSHO  EQ1", juce::dontSendNotification);
+    brand.setText ("whysho EQ1", juce::dontSendNotification);
     brand.setFont (juce::Font (20.0f, juce::Font::bold));
     brand.setColour (juce::Label::textColourId, theme().accent);
     addAndMakeVisible (brand);

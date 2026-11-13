@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  build-macos-installer.sh — build the Whysho EQ1 macOS installer (.pkg)
+#  build-macos-installer.sh — build the whysho EQ1 macOS installer (.pkg)
 # =============================================================================
 #
 #  Builds a flat distribution .pkg using pkgbuild (per component) + productbuild
@@ -59,15 +59,15 @@ mkdir -p "${OUTPUT_DIR}"
 OUTPUT_DIR="$(cd "${OUTPUT_DIR}" && pwd)"
 
 ARTEFACTS_DIR="${BUILD_DIR}/WhyshoEQ1_artefacts/Release"
-VST3_SRC="${ARTEFACTS_DIR}/VST3/Whysho EQ1.vst3"
-AU_SRC="${ARTEFACTS_DIR}/AU/Whysho EQ1.component"
+VST3_SRC="${ARTEFACTS_DIR}/VST3/whysho EQ1.vst3"
+AU_SRC="${ARTEFACTS_DIR}/AU/whysho EQ1.component"
 
-PRODUCT_NAME="Whysho EQ1"
+PRODUCT_NAME="whysho EQ1"
 PKG_ID_VST3="com.whysho.eq1.vst3"
 PKG_ID_AU="com.whysho.eq1.au"
 FINAL_PKG="${OUTPUT_DIR}/WhyshoEQ1-${VERSION}-macOS.pkg"
 
-echo "==> Whysho EQ1 macOS installer"
+echo "==> whysho EQ1 macOS installer"
 echo "    Version   : ${VERSION}"
 echo "    RepoRoot  : ${REPO_ROOT}"
 echo "    BuildDir  : ${BUILD_DIR}"
@@ -131,7 +131,7 @@ if [[ -n "${APPLE_CERT:-}" && -n "${APPLE_CERT_PWD:-}" ]]; then
 
     if [[ -n "${SIGN_ID_APP}" ]]; then
         echo "==> Code-signing plug-in bundles with: ${SIGN_ID_APP}"
-        for bundle in "${STAGE_VST3}/Whysho EQ1.vst3" "${STAGE_AU}/Whysho EQ1.component"; do
+        for bundle in "${STAGE_VST3}/whysho EQ1.vst3" "${STAGE_AU}/whysho EQ1.component"; do
             codesign --force --deep --timestamp --options runtime \
                 --sign "${SIGN_ID_APP}" "${bundle}"
             codesign --verify --strict --verbose=2 "${bundle}"

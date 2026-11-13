@@ -1,6 +1,6 @@
-# Whysho EQ1
+# whysho EQ1
 
-A modern, feature-complete equalizer plugin — part of the Whysho suite, but fully independent.
+A modern, feature-complete equalizer plugin — part of the whysho suite, but fully independent.
 Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) and **AU** (macOS).
 
 ![status](https://img.shields.io/badge/stage-alpha-orange) ![formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU-blue)
@@ -20,7 +20,7 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - Dedicated **sidechain input bus** — route any track or plugin output into it from your DAW
 - Per-band **"SC Key"** makes that band's dynamics follow the sidechain instead of the internal signal
 - **Sidechain Listen** to audition the key signal
-- Works with Whysho plugins *and* any host-routed source (FL Studio, Ableton, Reaper, Cubase, Logic …)
+- Works with whysho plugins *and* any host-routed source (FL Studio, Ableton, Reaper, Cubase, Logic …)
 
 **Processing & quality**
 - Phase modes: **Zero Latency** (IIR) · **Natural** · **Linear Phase** (FFT, latency-compensated)
@@ -34,10 +34,10 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 **Interface**
 - Real-time **FFT spectrum analyzer** (Pre / Post / Pre+Post / Sidechain) with musical tilt
 - **Draggable band nodes** on the curve — drag to set freq/gain, wheel for Q, right-click for type/channel/dynamics
-- **Themes** — switchable palettes, persisted with the project. **Paper** (the Whysho editorial/paper brand look) is the default; **Midnight** and **Graphite** are dark alternatives
+- **Themes** — switchable palettes, persisted with the project. **Paper** (the whysho editorial/paper brand look) is the default; **Midnight** and **Graphite** are dark alternatives
 - Resizable UI
 
-**Theming / brand** — The visual system lives in `src/gui/Theme.h`: one `Theme` struct (colors + per-band node palette + style flags) and a small catalogue. "Paper" is the shared Whysho brand look intended across the whole suite (and the website). To add a theme, append one entry to the catalogue — every component reads `theme().<token>` live, so no other code changes. The selector is in the top bar; the choice is saved in the plugin state (`uiTheme`).
+**Theming / brand** — The visual system lives in `src/gui/Theme.h`: one `Theme` struct (colors + per-band node palette + style flags) and a small catalogue. "Paper" is the shared whysho brand look intended across the whole suite (and the website). To add a theme, append one entry to the catalogue — every component reads `theme().<token>` live, so no other code changes. The selector is in the top bar; the choice is saved in the plugin state (`uiTheme`).
 
 **Licensing** — see [`docs/LICENSING.md`](docs/LICENSING.md)
 - Online **activation** → machine-bound, **Ed25519-signed** license, verified **offline** on every load
@@ -78,7 +78,7 @@ Install locations and code-signing/notarization setup are documented in [`packag
 
 ## Using the sidechain (quick guide)
 
-1. Add **Whysho EQ1** on the track you want to process.
+1. Add **whysho EQ1** on the track you want to process.
 2. Enable a band and turn on **Dynamic** + **SC Key** for it.
 3. In your DAW, route the *source* track/plugin to EQ1's **Sidechain** input:
    - **FL Studio:** right-click the source channel → *Sidechain to this track*, then pick the sidechain input in EQ1's wrapper.
@@ -88,7 +88,7 @@ Install locations and code-signing/notarization setup are documented in [`packag
 ## Security / "non-crackable" — honest note
 
 No locally-run plugin can be made truly uncrackable; anything that executes on a user's
-machine can, in principle, be bypassed. Whysho EQ1 instead uses a **layered deterrent**:
+machine can, in principle, be bypassed. whysho EQ1 instead uses a **layered deterrent**:
 signed machine-bound licenses verified offline, obfuscated secrets, a redundant audio-path
 gate, and anti-debug probes. The goal is to make cracking expensive and casual sharing
 impractical — not to promise the impossible. See [`docs/LICENSING.md`](docs/LICENSING.md).
@@ -99,4 +99,4 @@ impractical — not to promise the impossible. See [`docs/LICENSING.md`](docs/LI
 - Linear-phase IR regeneration off the audio thread (background)
 - Preset browser + factory presets, A/B compare, undo/redo
 - CLAP format, AAX (Pro Tools)
-- Inter-plugin shared sidechain bus across the Whysho suite
+- Inter-plugin shared sidechain bus across the whysho suite

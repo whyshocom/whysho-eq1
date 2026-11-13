@@ -1,4 +1,4 @@
-# Whysho EQ1 — Licensing & Copy Protection
+# whysho EQ1 — Licensing & Copy Protection
 
 This document describes the licensing architecture, the token format, and an
 honest assessment of what the protection does and does not guarantee.
@@ -58,7 +58,7 @@ byte-compatible. Full server spec in `server/README.md`.
 
 No software that runs on a user's machine can be made truly uncrackable — the
 CPU must eventually execute the audio path, so a determined attacker can patch
-it. Whysho EQ1 therefore aims to make cracking **expensive and casual sharing
+it. whysho EQ1 therefore aims to make cracking **expensive and casual sharing
 pointless**, via several independent layers:
 
 1. **Signed, machine-bound licenses** — a shared key file is useless on another

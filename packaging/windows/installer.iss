@@ -1,5 +1,5 @@
 ; =============================================================================
-;  Whysho EQ1 — Windows installer (Inno Setup 6)
+;  whysho EQ1 — Windows installer (Inno Setup 6)
 ; =============================================================================
 ;
 ;  This script packages the VST3 plug-in and the Standalone application into a
@@ -43,14 +43,14 @@
   #define LicenseFile AddBackslash(RepoRoot) + "packaging\EULA.txt"
 #endif
 
-#define AppName       "Whysho EQ1"
-#define AppPublisher  "Whysho"
+#define AppName       "whysho EQ1"
+#define AppPublisher  "whysho"
 #define AppURL        "https://whysho.com"
-#define AppExeName    "Whysho EQ1.exe"
+#define AppExeName    "whysho EQ1.exe"
 ; JUCE artefact locations under the build tree.
 #define ArtefactsDir  AddBackslash(BuildDir) + "WhyshoEQ1_artefacts\Release"
-#define Vst3Bundle    AddBackslash(ArtefactsDir) + "VST3\Whysho EQ1.vst3"
-#define StandaloneExe AddBackslash(ArtefactsDir) + "Standalone\Whysho EQ1.exe"
+#define Vst3Bundle    AddBackslash(ArtefactsDir) + "VST3\whysho EQ1.vst3"
+#define StandaloneExe AddBackslash(ArtefactsDir) + "Standalone\whysho EQ1.exe"
 
 [Setup]
 ; A stable, unique AppId (GUID) so upgrades and uninstall work across versions.

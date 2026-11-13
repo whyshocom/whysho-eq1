@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# version.sh — derive the project version for Whysho EQ1 packaging.
+# version.sh — derive the project version for whysho EQ1 packaging.
 #
 # Resolution order:
 #   1. $WHYSHO_VERSION environment variable, if set (CI may pass it through).

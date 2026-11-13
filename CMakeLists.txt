@@ -50,14 +50,14 @@ target_include_directories(monocypher PUBLIC
 
 # ---------------------------------------------------------------------------
 juce_add_plugin(WhyshoEQ1
-    COMPANY_NAME                "Whysho"
+    COMPANY_NAME                "whysho"
     COMPANY_WEBSITE             "https://whysho.com"
     BUNDLE_ID                   "com.whysho.eq1"
     PLUGIN_MANUFACTURER_CODE    Wsho
     PLUGIN_CODE                 Weq1
     FORMATS                     VST3 AU Standalone
-    PRODUCT_NAME                "Whysho EQ1"
-    DESCRIPTION                 "Whysho EQ1 — modern dynamic / linear-phase equalizer"
+    PRODUCT_NAME                "whysho EQ1"
+    DESCRIPTION                 "whysho EQ1 — modern dynamic / linear-phase equalizer"
     VST3_CATEGORIES             Fx EQ
     AU_MAIN_TYPE                kAudioUnitType_Effect
     IS_SYNTH                    FALSE

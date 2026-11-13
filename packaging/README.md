@@ -1,6 +1,6 @@
-# Whysho EQ1 — Packaging & Installers
+# whysho EQ1 — Packaging & Installers
 
-This directory holds everything needed to turn a built copy of **Whysho EQ1**
+This directory holds everything needed to turn a built copy of **whysho EQ1**
 into distributable installers for Windows and macOS, plus the CI that does it
 automatically.
 
@@ -28,16 +28,16 @@ scripts/
 |-------------|------------------------------------------------|----------------------------------------------|
 | VST3        | `C:\Program Files\Common Files\VST3\`          | `/Library/Audio/Plug-Ins/VST3/`              |
 | AU          | — (not built on Windows)                       | `/Library/Audio/Plug-Ins/Components/`        |
-| Standalone  | `C:\Program Files\Whysho\Whysho EQ1\` + Start Menu shortcut | (not packaged in the `.pkg`)   |
+| Standalone  | `C:\Program Files\whysho\whysho EQ1\` + Start Menu shortcut | (not packaged in the `.pkg`)   |
 
 ## Build artefacts consumed
 
 Both scripts expect JUCE's standard artefact layout under the CMake build dir:
 
 ```
-build/WhyshoEQ1_artefacts/Release/VST3/Whysho EQ1.vst3
-build/WhyshoEQ1_artefacts/Release/AU/Whysho EQ1.component     (macOS only)
-build/WhyshoEQ1_artefacts/Release/Standalone/Whysho EQ1.exe   (Windows)
+build/WhyshoEQ1_artefacts/Release/VST3/whysho EQ1.vst3
+build/WhyshoEQ1_artefacts/Release/AU/whysho EQ1.component     (macOS only)
+build/WhyshoEQ1_artefacts/Release/Standalone/whysho EQ1.exe   (Windows)
 ```
 
 ## Building installers locally
