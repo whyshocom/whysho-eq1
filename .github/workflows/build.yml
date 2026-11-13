@@ -33,7 +33,10 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-          - os: macos-14
+          # macos-13 (Intel, standard runner) — broadly available. Still emits a
+          # universal x86_64+arm64 binary, so Apple Silicon users get native code.
+          # (macos-14 resolved to an unsupported xlarge spec on this account.)
+          - os: macos-13
             name: macos
 
     env:
