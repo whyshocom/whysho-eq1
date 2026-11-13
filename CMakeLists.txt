@@ -74,6 +74,7 @@ set(WHYSHO_SOURCES
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
     src/Parameters.cpp
+    src/PresetManager.cpp
     src/dsp/EqEngine.cpp
     src/dsp/SpectrumAnalyzer.cpp
     src/licensing/License.cpp

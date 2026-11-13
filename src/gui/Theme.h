@@ -11,6 +11,7 @@ struct Theme
     juce::String name;
     bool   light      = false;   // paper-style rendering (black curve, fills)
     bool   curveGlow  = true;    // neon glow under the curve (dark themes)
+    bool   mono       = false;   // monospace editorial typography
 
     juce::Colour bg, panel, panel2, grid, text, textDim,
                  accent, accent2, good, warn, bad, curve, specPre, specPost;
@@ -24,7 +25,7 @@ inline const std::array<Theme, 3>& themes()
     static const std::array<Theme, 3> list = {
         // 0 — Paper (default): warm editorial light look
         Theme{
-            "Paper", /*light*/ true, /*glow*/ false,
+            "Paper", /*light*/ true, /*glow*/ false, /*mono*/ true,
             juce::Colour (0xffF2EEE3), // bg
             juce::Colour (0xffEAE5D7), // panel
             juce::Colour (0xffFBF9F2), // panel2 (fields)
@@ -45,7 +46,7 @@ inline const std::array<Theme, 3>& themes()
         },
         // 1 — Midnight: dark cyan (the original)
         Theme{
-            "Midnight", false, true,
+            "Midnight", false, true, false,
             juce::Colour (0xff0E0F13), juce::Colour (0xff15171E), juce::Colour (0xff1C1F29),
             juce::Colour (0xff2A2E3A), juce::Colour (0xffE6E9F0), juce::Colour (0xff8A90A0),
             juce::Colour (0xff4CC2FF), juce::Colour (0xffB46BFF), juce::Colour (0xff57D9A3),
@@ -57,7 +58,7 @@ inline const std::array<Theme, 3>& themes()
         },
         // 2 — Graphite: dark neutral, amber accent
         Theme{
-            "Graphite", false, false,
+            "Graphite", false, false, false,
             juce::Colour (0xff17171A), juce::Colour (0xff1F1F23), juce::Colour (0xff27272C),
             juce::Colour (0xff343439), juce::Colour (0xffEDEDED), juce::Colour (0xff908F96),
             juce::Colour (0xffF2A33C), juce::Colour (0xffCE6BF2), juce::Colour (0xff5BD98C),
@@ -97,5 +98,17 @@ inline juce::Colour bandColour (int band)
     const auto& pal = theme().nodePalette;
     return pal[(size_t) (band % (int) pal.size())];
 }
+
+// Typography: monospace editorial face for Paper, clean sans for dark themes.
+inline juce::Font themeFont (float height, bool bold = false)
+{
+    if (theme().mono)
+        return juce::Font (juce::Font::getDefaultMonospacedFontName(), height,
+                           bold ? juce::Font::bold : juce::Font::plain);
+    return juce::Font (height, bold ? juce::Font::bold : juce::Font::plain);
+}
+
+// All-caps label with light tracking (used for section / header text).
+inline juce::String caps (const juce::String& s) { return s.toUpperCase(); }
 
 } // namespace wsho::gui

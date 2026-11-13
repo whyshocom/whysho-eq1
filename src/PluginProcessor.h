@@ -6,6 +6,7 @@
 #include "licensing/License.h"
 #include "licensing/Activation.h"
 #include "licensing/AntiTamper.h"
+#include "PresetManager.h"
 
 namespace wsho
 {
@@ -48,6 +49,7 @@ public:
 
     lic::LicenseManager& licenseManager() { return licMgr; }
     lic::ActivationClient& activationClient() { return activation; }
+    PresetManager& presetManager() { return presets; }
     void refreshLicense();
     lic::LicenseInfo licenseInfo;
 
@@ -58,6 +60,7 @@ private:
     void cacheParamPointers();
 
     juce::AudioProcessorValueTreeState apvts;
+    PresetManager presets { apvts };
     dsp::EqEngine eqEngine;
     dsp::SpectrumAnalyzer analyzerPre, analyzerPost, analyzerSC;
 

@@ -34,6 +34,7 @@ private:
     WhyshoEQAudioProcessor& proc;
     gui::WhyshoLookAndFeel lnf;
 
+    juce::TooltipWindow    tooltipWindow { this, 600 };
     gui::AnalyzerComponent analyzer;
     gui::BandEditor        bandEditor;
     std::unique_ptr<gui::LicenseDialog> licenseDialog;
@@ -46,7 +47,19 @@ private:
     juce::ComboBox themeBox;
     juce::Label brand;
 
+    // preset bar
+    juce::ComboBox presetBox;
+    juce::TextButton prevBtn { "<" }, nextBtn { ">" }, saveBtn { "Save" },
+                     abBtn { "A" }, copyBtn { "Copy" };
+    bool slotB = false;
+    std::unique_ptr<juce::AlertWindow> saveDialog;
+
     void applyThemeChange (int index);
+    void rebuildPresetMenu();
+    void selectPresetDelta (int d);
+    void applyPresetSelection();
+    void doSavePreset();
+    void toggleAB();
 
     juce::OwnedArray<SA> sa; juce::OwnedArray<CA> ca; juce::OwnedArray<BA> ba;
 

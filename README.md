@@ -27,6 +27,10 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - **Oversampling**: off / 2× / 4× / 8× / 16×
 - **Auto-gain** compensation, global In/Out trim, dry/wet **Mix**, global EQ-gain **Scale**
 
+**Presets & workflow**
+- **Factory bank** (Vocal Presence, Bass Tighten, De-Ess, Mix Glue, Air Lift, Telephone, Warmth, …) + **user presets** saved to disk
+- Preset bar with prev/next, **Save**, and **A/B compare** + Copy
+
 **Interface**
 - Real-time **FFT spectrum analyzer** (Pre / Post / Pre+Post / Sidechain) with musical tilt
 - **Draggable band nodes** on the curve — drag to set freq/gain, wheel for Q, right-click for type/channel/dynamics

@@ -29,9 +29,12 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     addCombo (kAnalyzerSourceNames); ca.add (new CA (proc.state(), pid::analyzer, *combos[2]));
 
     // toggles: bypass, autogain, sc listen
-    addToggle ("Bypass");   ba.add (new BA (proc.state(), pid::bypass,   *toggles[0]));
-    addToggle ("Auto Gain");ba.add (new BA (proc.state(), pid::autoGain, *toggles[1]));
-    addToggle ("SC Listen");ba.add (new BA (proc.state(), pid::scListen, *toggles[2]));
+    addToggle ("Bypass").setTooltip ("Bypass the whole plugin");
+    ba.add (new BA (proc.state(), pid::bypass,   *toggles[0]));
+    addToggle ("Auto").setTooltip ("Auto output-gain compensation");
+    ba.add (new BA (proc.state(), pid::autoGain, *toggles[1]));
+    addToggle ("Listen").setTooltip ("Monitor the sidechain input");
+    ba.add (new BA (proc.state(), pid::scListen, *toggles[2]));
 
     addAndMakeVisible (licenseBtn);
     licenseBtn.setComponentID ("license");
@@ -45,6 +48,18 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     themeBox.onChange = [this] { applyThemeChange (themeBox.getSelectedId() - 1); };
     addAndMakeVisible (themeBox);
     applyThemeChange (currentThemeIndex());
+
+    // Preset bar
+    for (auto* b : { &prevBtn, &nextBtn, &saveBtn, &abBtn, &copyBtn }) addAndMakeVisible (b);
+    addAndMakeVisible (presetBox);
+    rebuildPresetMenu();
+    presetBox.onChange = [this] { applyPresetSelection(); };
+    prevBtn.onClick = [this] { selectPresetDelta (-1); };
+    nextBtn.onClick = [this] { selectPresetDelta (+1); };
+    saveBtn.onClick = [this] { doSavePreset(); };
+    abBtn.onClick   = [this] { toggleAB(); };
+    copyBtn.onClick = [this] { proc.presetManager().captureTo (! slotB); };
+    proc.presetManager().captureTo (false); // seed slot A with current state
 
     setResizable (true, true);
     setResizeLimits (860, 540, 1800, 1200);
@@ -90,8 +105,81 @@ void WhyshoEQAudioProcessorEditor::applyThemeChange (int index)
 void WhyshoEQAudioProcessorEditor::lookAndFeelChanged()
 {
     brand.setColour (juce::Label::textColourId, theme().accent);
+    brand.setFont (themeFont (19.0f, true));
     for (auto* l : knobLabels)
+    {
         l->setColour (juce::Label::textColourId, theme().textDim);
+        l->setFont (themeFont (10.0f));
+    }
+}
+
+void WhyshoEQAudioProcessorEditor::rebuildPresetMenu()
+{
+    auto& pm = proc.presetManager();
+    presetBox.clear (juce::dontSendNotification);
+    auto fac = pm.factoryNames();
+    auto usr = pm.userNames();
+
+    presetBox.addSectionHeading ("Factory");
+    for (int i = 0; i < fac.size(); ++i) presetBox.addItem (fac[i], i + 1);          // ids 1..F
+    if (! usr.isEmpty())
+    {
+        presetBox.addSectionHeading ("User");
+        for (int i = 0; i < usr.size(); ++i) presetBox.addItem (usr[i], 100 + i);    // ids 100+
+    }
+    // reflect current
+    const auto cur = pm.current();
+    for (int i = 0; i < fac.size(); ++i) if (fac[i] == cur) presetBox.setSelectedId (i + 1, juce::dontSendNotification);
+    for (int i = 0; i < usr.size(); ++i) if (usr[i] == cur) presetBox.setSelectedId (100 + i, juce::dontSendNotification);
+}
+
+void WhyshoEQAudioProcessorEditor::applyPresetSelection()
+{
+    auto& pm = proc.presetManager();
+    const int id = presetBox.getSelectedId();
+    if (id >= 1 && id < 100) { auto f = pm.factoryNames(); if (id - 1 < f.size()) pm.applyFactory (f[id - 1]); }
+    else if (id >= 100)      { auto u = pm.userNames();    if (id - 100 < u.size()) pm.applyUser (u[id - 100]); }
+    bandEditor.setBand (0);
+}
+
+void WhyshoEQAudioProcessorEditor::selectPresetDelta (int d)
+{
+    juce::Array<int> ids;
+    for (int i = 0; i < presetBox.getNumItems(); ++i)
+        if (auto id = presetBox.getItemId (i)) ids.add (id);
+    if (ids.isEmpty()) return;
+    int idx = ids.indexOf (presetBox.getSelectedId());
+    idx = juce::jlimit (0, ids.size() - 1, (idx < 0 ? 0 : idx) + d);
+    presetBox.setSelectedId (ids[idx]); // triggers onChange
+}
+
+void WhyshoEQAudioProcessorEditor::doSavePreset()
+{
+    saveDialog = std::make_unique<juce::AlertWindow> ("Save Preset", "Name:", juce::MessageBoxIconType::NoIcon);
+    saveDialog->addTextEditor ("name", "My Preset");
+    saveDialog->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveDialog->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([this] (int r)
+    {
+        if (r == 1)
+        {
+            auto name = saveDialog->getTextEditorContents ("name").trim();
+            if (name.isNotEmpty()) { proc.presetManager().saveUser (name); rebuildPresetMenu(); }
+        }
+        saveDialog->exitModalState (r);
+        saveDialog.reset();
+    }), false);
+}
+
+void WhyshoEQAudioProcessorEditor::toggleAB()
+{
+    auto& pm = proc.presetManager();
+    pm.captureTo (slotB);                 // store current into the active slot
+    slotB = ! slotB;
+    if (! pm.hasSlot (slotB)) pm.captureTo (slotB); // seed empty slot
+    pm.recallFrom (slotB);
+    abBtn.setButtonText (slotB ? "B" : "A");
+    bandEditor.setBand (0);
 }
 
 void WhyshoEQAudioProcessorEditor::openLicense()
@@ -149,6 +237,17 @@ void WhyshoEQAudioProcessorEditor::resized()
     placeCombo (2, "Analyzer", 96);
     top.removeFromLeft (6);
     for (int i = 0; i < 3; ++i) toggles[i]->setBounds (top.removeFromLeft (84).reduced (2, 6));
+
+    // --- preset bar (second row) ---
+    auto pr = r.removeFromTop (34).reduced (8, 4);
+    prevBtn.setBounds  (pr.removeFromLeft (28).reduced (1));
+    presetBox.setBounds (pr.removeFromLeft (240).reduced (2, 1));
+    nextBtn.setBounds  (pr.removeFromLeft (28).reduced (1));
+    pr.removeFromLeft (10);
+    saveBtn.setBounds  (pr.removeFromLeft (64).reduced (2, 1));
+    pr.removeFromLeft (10);
+    abBtn.setBounds    (pr.removeFromLeft (44).reduced (2, 1));
+    copyBtn.setBounds  (pr.removeFromLeft (60).reduced (2, 1));
 
     auto bottom = r.removeFromBottom (150).reduced (8, 6);
     bandEditor.setBounds (bottom);

@@ -124,7 +124,7 @@ void AnalyzerComponent::drawGrid (juce::Graphics& g)
 {
     g.setColour (theme().grid.withAlpha (0.6f));
     const float decades[] = { 20,30,50,100,200,300,500,1000,2000,3000,5000,10000,20000 };
-    g.setFont (10.0f);
+    g.setFont (themeFont (9.5f));
     for (float f : decades)
     {
         const float x = freqToX (f);

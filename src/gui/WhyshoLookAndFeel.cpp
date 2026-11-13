@@ -95,23 +95,24 @@ void WhyshoLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b
 
 void WhyshoLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool hl, bool)
 {
+    const auto& t = theme();
+    const bool on = b.getToggleState();
     auto bounds = b.getLocalBounds().toFloat();
-    auto box = bounds.removeFromLeft (20.0f).withSizeKeepingCentre (16.0f, 16.0f);
-    g.setColour (b.getToggleState() ? theme().accent : theme().panel2);
-    g.fillRoundedRectangle (box, 4.0f);
-    g.setColour (theme().grid);
-    g.drawRoundedRectangle (box, 4.0f, 1.0f);
-    if (b.getToggleState())
-    {
-        g.setColour (theme().bg);
-        juce::Path tick;
-        auto t = box.reduced (3.0f);
-        tick.startNewSubPath (t.getX(), t.getCentreY());
-        tick.lineTo (t.getCentreX() - 1, t.getBottom());
-        tick.lineTo (t.getRight(), t.getY());
-        g.strokePath (tick, juce::PathStrokeType (2.0f));
-    }
-    g.setColour (hl ? theme().text : theme().textDim);
-    g.setFont (11.5f);
-    g.drawText (b.getButtonText(), bounds.withTrimmedLeft (3), juce::Justification::centredLeft);
+
+    // --- pill switch ---
+    const float h = juce::jmin (16.0f, bounds.getHeight());
+    auto track = bounds.removeFromLeft (30.0f).withSizeKeepingCentre (30.0f, h);
+    g.setColour (on ? t.accent : (t.light ? t.grid : t.panel2));
+    g.fillRoundedRectangle (track, h * 0.5f);
+    if (! on) { g.setColour (t.grid); g.drawRoundedRectangle (track, h * 0.5f, 1.0f); }
+
+    const float knobR = h * 0.5f - 2.0f;
+    const float kx = on ? track.getRight() - knobR - 2.0f : track.getX() + knobR + 2.0f;
+    g.setColour (on ? juce::Colours::white : t.textDim);
+    g.fillEllipse (kx - knobR, track.getCentreY() - knobR, knobR * 2, knobR * 2);
+
+    // --- label ---
+    g.setColour (on ? t.text : t.textDim.withAlpha (hl ? 1.0f : 0.85f));
+    g.setFont (themeFont (11.0f));
+    g.drawText (b.getButtonText(), bounds.withTrimmedLeft (6), juce::Justification::centredLeft);
 }

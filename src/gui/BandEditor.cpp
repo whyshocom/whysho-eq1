@@ -29,8 +29,12 @@ BandEditor::BandEditor (WhyshoEQAudioProcessor& p) : proc (p)
 void BandEditor::lookAndFeelChanged()
 {
     title.setColour (juce::Label::textColourId, theme().accent);
+    title.setFont (themeFont (14.0f, true));
     for (auto* k : knobs)
+    {
         k->label.setColour (juce::Label::textColourId, theme().textDim);
+        k->label.setFont (themeFont (10.5f));
+    }
     repaint();
 }
 
@@ -101,8 +105,8 @@ void BandEditor::paint (juce::Graphics& g)
     g.setColour (theme().grid);
     g.drawVerticalLine (getWidth() * 55 / 100, 8.0f, getHeight() - 8.0f);
     g.setColour (theme().textDim);
-    g.setFont (10.0f);
-    g.drawText ("DYNAMICS", getWidth() * 55 / 100 + 6, 4, 80, 12, juce::Justification::left);
+    g.setFont (themeFont (10.0f, true));
+    g.drawText ("DYNAMICS", getWidth() * 55 / 100 + 6, 4, 90, 12, juce::Justification::left);
 }
 
 void BandEditor::resized()
