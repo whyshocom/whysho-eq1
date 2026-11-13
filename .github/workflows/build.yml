@@ -33,10 +33,10 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-          # macos-13 (Intel, standard runner) — broadly available. Still emits a
-          # universal x86_64+arm64 binary, so Apple Silicon users get native code.
-          # (macos-14 resolved to an unsupported xlarge spec on this account.)
-          - os: macos-13
+          # Self-hosted macOS runner (your Mac) — GitHub-hosted macOS runners
+          # are gated on this account. Builds a universal x86_64+arm64 binary.
+          # Revert to `os: macos-13` once hosted macOS is available.
+          - os: [self-hosted, macOS]
             name: macos
 
     env:
