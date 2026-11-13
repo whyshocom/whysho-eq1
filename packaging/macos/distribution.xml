@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Whysho EQ1 — macOS installer distribution definition (productbuild).
+
+  This is a TEMPLATE. scripts/build-macos-installer.sh substitutes the
+  __VERSION__ tokens and resolves the component package references at build
+  time, then invokes:
+
+    productbuild --distribution <processed.xml> \
+                 --resources <resources-dir> \
+                 --package-path <component-pkgs-dir> \
+                 WhyshoEQ1-<version>-macOS.pkg
+
+  Resource files (welcome.html, license.txt) live in the --resources dir.
+  license.txt is a copy of packaging/EULA.txt.
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>Whysho EQ1</title>
+
+    <!-- Universal2: install on both Intel and Apple Silicon. -->
+    <options customize="allow" require-scripts="false" rootVolumeOnly="true"
+             hostArchitectures="x86_64,arm64"/>
+
+    <!-- macOS 11 (Big Sur) or newer. -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="11.0"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- Wizard panes. welcome + license (the EULA) are shown to the user. -->
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="license.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <!-- Optional: drop a background.png into packaging/macos/ to enable this.
+         <background file="background.png" mime-type="image/png"
+                     alignment="bottomleft" scaling="proportional"/> -->
+
+    <!-- Component package references (ids match pkgbuild --identifier). -->
+    <pkg-ref id="com.whysho.eq1.vst3"/>
+    <pkg-ref id="com.whysho.eq1.au"/>
+
+    <choices-outline>
+        <line choice="choice_vst3"/>
+        <line choice="choice_au"/>
+    </choices-outline>
+
+    <choice id="choice_vst3" title="VST3 Plug-In"
+            description="Install the Whysho EQ1 VST3 plug-in to /Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="com.whysho.eq1.vst3"/>
+    </choice>
+
+    <choice id="choice_au" title="Audio Unit (AU)"
+            description="Install the Whysho EQ1 Audio Unit to /Library/Audio/Plug-Ins/Components.">
+        <pkg-ref id="com.whysho.eq1.au"/>
+    </choice>
+
+    <pkg-ref id="com.whysho.eq1.vst3" version="__VERSION__" onConclusion="none">WhyshoEQ1-VST3.pkg</pkg-ref>
+    <pkg-ref id="com.whysho.eq1.au" version="__VERSION__" onConclusion="none">WhyshoEQ1-AU.pkg</pkg-ref>
+</installer-gui-script>

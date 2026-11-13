@@ -1,0 +1,23 @@
+# Build
+/build/
+/build-*/
+/cmake-build-*/
+*.o
+*.obj
+
+# CPM / dependency cache
+/.cpm-cache/
+.cache/
+
+# Installer output
+/dist/
+
+# Snapshots (dev previews)
+/shots/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

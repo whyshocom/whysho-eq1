@@ -1,0 +1,72 @@
+WHYSHO EQ1 — END USER LICENSE AGREEMENT
+
+IMPORTANT — READ CAREFULLY. This End User License Agreement ("Agreement")
+is a legal agreement between you (either an individual or a single entity,
+"You") and Whysho ("Whysho", "we", "us") for the Whysho EQ1 audio plug-in
+software, associated media, and accompanying documentation (collectively,
+the "Software").
+
+BY INSTALLING, COPYING, OR OTHERWISE USING THE SOFTWARE, YOU AGREE TO BE
+BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT INSTALL
+OR USE THE SOFTWARE.
+
+NOTE: This is a placeholder commercial EULA provided for packaging and
+build-tooling purposes. Replace it with text reviewed by legal counsel
+before any public commercial release.
+
+1. LICENSE GRANT
+   Subject to Your compliance with this Agreement and payment of all
+   applicable license fees, Whysho grants You a non-exclusive,
+   non-transferable license to install and use the Software on computers
+   that You own or control, solely for Your own music production and
+   audio-processing purposes.
+
+2. RESTRICTIONS
+   You may not, and may not permit any third party to: (a) rent, lease,
+   lend, sell, redistribute, sublicense, or otherwise commercially exploit
+   the Software; (b) copy the Software except as expressly permitted
+   herein; (c) reverse engineer, decompile, or disassemble the Software,
+   except to the extent that such activity is expressly permitted by
+   applicable law notwithstanding this limitation; or (d) remove, alter,
+   or obscure any proprietary notices on or in the Software.
+
+3. OWNERSHIP
+   The Software is licensed, not sold. Whysho and its licensors retain all
+   right, title, and interest in and to the Software, including all
+   intellectual property rights therein.
+
+4. UPDATES
+   Any updates, upgrades, or supplements to the Software provided by
+   Whysho are governed by this Agreement unless accompanied by separate
+   terms.
+
+5. TERMINATION
+   This Agreement is effective until terminated. Your rights under this
+   Agreement will terminate automatically without notice if You fail to
+   comply with any of its terms. Upon termination, You must cease all use
+   of the Software and destroy all copies.
+
+6. DISCLAIMER OF WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY
+   OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, AND NON-INFRINGEMENT. YOU ASSUME THE ENTIRE RISK AS TO THE
+   QUALITY AND PERFORMANCE OF THE SOFTWARE.
+
+7. LIMITATION OF LIABILITY
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+   WHYSHO BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR
+   CONSEQUENTIAL DAMAGES WHATSOEVER ARISING OUT OF OR RELATED TO THE USE
+   OF OR INABILITY TO USE THE SOFTWARE.
+
+8. GOVERNING LAW
+   This Agreement shall be governed by and construed in accordance with
+   the laws applicable at Whysho's principal place of business, without
+   regard to its conflict-of-laws provisions.
+
+9. ENTIRE AGREEMENT
+   This Agreement constitutes the entire agreement between You and Whysho
+   relating to the Software and supersedes all prior or contemporaneous
+   understandings regarding such subject matter.
+
+Copyright (c) Whysho. All rights reserved.
