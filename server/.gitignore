@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.log
+
+# Runtime database (SQLite + WAL sidecars). Keep the dir, ignore its contents.
+data/*
+!data/.gitkeep
+
+# Local secrets / environment
+.env
+.env.local
+
+# Never commit ANY private key. keys/DEV_PRIVATE_KEY.txt holds the disposable
+# dev key for local use only and stays out of version control; only the PUBLIC
+# key (public_key.hex) and the C++ snippet (public_key_cpp.txt) are committed.
+keys/DEV_PRIVATE_KEY.txt
+keys/*.pem
+keys/*.key
+keys/*PRIVATE*
+keys/*private*
