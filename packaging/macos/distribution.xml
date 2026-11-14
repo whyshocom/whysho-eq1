@@ -3,16 +3,12 @@
   whysho EQ1 — macOS installer distribution definition (productbuild).
 
   This is a TEMPLATE. scripts/build-macos-installer.sh substitutes the
-  __VERSION__ tokens and resolves the component package references at build
-  time, then invokes:
+  __VERSION__ tokens, resolves the component package references, and runs
+  productbuild to produce WhyshoEQ1-<version>-macOS.pkg.
 
-    productbuild --distribution <processed.xml> \
-                 --resources <resources-dir> \
-                 --package-path <component-pkgs-dir> \
-                 WhyshoEQ1-<version>-macOS.pkg
-
-  Resource files (welcome.html, license.txt) live in the --resources dir.
+  Resource files (welcome.html, license.txt) live in the resources dir;
   license.txt is a copy of packaging/EULA.txt.
+  (XML comments must not contain double hyphens, so none appear here.)
 -->
 <installer-gui-script minSpecVersion="2">
     <title>whysho EQ1</title>
@@ -36,7 +32,7 @@
          <background file="background.png" mime-type="image/png"
                      alignment="bottomleft" scaling="proportional"/> -->
 
-    <!-- Component package references (ids match pkgbuild --identifier). -->
+    <!-- Component package references (ids match the pkgbuild identifier). -->
     <pkg-ref id="com.whysho.eq1.vst3"/>
     <pkg-ref id="com.whysho.eq1.au"/>
 
