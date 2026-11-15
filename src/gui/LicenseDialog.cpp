@@ -83,8 +83,10 @@ void LicenseDialog::refresh()
         text = s.signedIn ? "Signed in as " + s.email + ". Thanks for buying EQ1."
                           : "Bought by " + s.email + ".";
         if (s.verdict.offlineDaysLeft <= 9)
-            text << " Go online within " << juce::String (juce::jmax (1, s.verdict.offlineDaysLeft))
-                 << (s.verdict.offlineDaysLeft == 1 ? " day" : " days") << " to keep it unlocked.";
+        {
+            const int d = juce::jmax (1, s.verdict.offlineDaysLeft);
+            text << " Go online within " << juce::String (d) << (d == 1 ? " day" : " days") << " to keep it unlocked.";
+        }
     }
     else if (s.verdict.kind == Kind::trial)
     {

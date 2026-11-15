@@ -6,7 +6,6 @@ namespace
 {
 constexpr uint32_t kOpen = 0xA5A5C3C3u, kShut = 0x12345678u, kSalt = 0x9E3779B9u;
 constexpr juce::int64 kRecheckAfter = 12 * 3600;   // refresh a cached answer this often
-constexpr juce::int64 kRetryAfter   = 3600;        // ... but don't hammer the site when it fails
 
 juce::int64 nowSeconds() { return juce::Time::currentTimeMillis() / 1000; }
 }
@@ -17,8 +16,8 @@ LicenseService::LicenseService() : juce::Thread ("whysho license")
     trial   = store.loadTrial();
     reevaluate();
 
-    if (account.signedIn() && nowSeconds() - account.checkedAt > kRecheckAfter)
-        request (wantCheck);                       // confirm in the background
+    // No network here: a host that only scans the plugin must not wait on us.
+    // The first online check happens once the plugin is really used (markUsed).
     startTimer (30 * 1000);
 }
 
@@ -60,7 +59,7 @@ void LicenseService::reevaluate()
         const auto now = nowSeconds();
 
         // Keep the forward-only clock moving; persist it about hourly.
-        if (trial.started())
+        if (trial.start > 1)     // a real, trusted record (1 = "untrusted, used up": never written back)
         {
             trial.lastSeen = juce::jmax (trial.lastSeen, now);
             if (trial.lastSeen - lastTrialWrite >= 3600)
@@ -79,6 +78,7 @@ void LicenseService::reevaluate()
 
         changed = before.verdict.kind != current.verdict.kind
                || before.verdict.trialDaysLeft != current.verdict.trialDaysLeft
+               || before.verdict.offlineDaysLeft != current.verdict.offlineDaysLeft
                || before.signedIn != current.signedIn
                || before.email != current.email
                || before.trialStarted != current.trialStarted;
@@ -88,13 +88,20 @@ void LicenseService::reevaluate()
 
 void LicenseService::markUsed()
 {
+    bool firstCheck = false, startedTrial = false;
     {
         const juce::ScopedLock sl (lock);
-        if (trial.started()) return;
-        trial.start = trial.lastSeen = lastTrialWrite = nowSeconds();
-        store.saveTrial (trial);
+        firstCheck = account.signedIn() && lastCheckAttempt == 0;
+        if (firstCheck) lastCheckAttempt = nowSeconds();
+        if (! trial.started())
+        {
+            trial.start = trial.lastSeen = lastTrialWrite = nowSeconds();
+            store.saveTrial (trial);
+            startedTrial = true;
+        }
     }
-    reevaluate();
+    if (startedTrial) reevaluate();
+    if (firstCheck)   request (wantCheck);     // confirm the license once per DAW launch
 }
 
 void LicenseService::setActivity (Status::Activity a, const juce::String& userCode)
@@ -154,10 +161,13 @@ void LicenseService::timerCallback()
 {
     reevaluate();
 
-    const juce::ScopedLock sl (lock);
-    const auto now = nowSeconds();
-    if (account.signedIn() && now - account.checkedAt > kRecheckAfter && now - lastCheckAttempt > kRetryAfter)
-        request (wantCheck);
+    bool due = false;
+    {
+        const juce::ScopedLock sl (lock);
+        // Only once the plugin is in real use (lastCheckAttempt set by markUsed).
+        due = account.signedIn() && lastCheckAttempt > 0 && nowSeconds() - lastCheckAttempt > kRecheckAfter;
+    }
+    if (due) request (wantCheck);
 }
 
 // ---- worker thread ---------------------------------------------------------
@@ -200,7 +210,7 @@ void LicenseService::doSignIn()
     juce::MessageManager::callAsync ([url = AccountClient::activationPageUrl (start.userCode)]
                                      { juce::URL (url).launchInDefaultBrowser(); });
 
-    const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) start.expiresInSeconds * 1000u;
+    const auto deadline = juce::Time::currentTimeMillis() + (juce::int64) start.expiresInSeconds * 1000;
     juce::String failure = "That code expired before it was approved. Try again.";
 
     for (;;)
@@ -208,9 +218,10 @@ void LicenseService::doSignIn()
         wait (start.intervalSeconds * 1000);
         if (threadShouldExit()) return;
         if (cancelLogin.exchange (false)) { failure = {}; break; }
-        if (juce::Time::getMillisecondCounter() > deadline) break;
+        if (juce::Time::currentTimeMillis() > deadline) break;
 
         const auto poll = client.pollLogin (start.deviceCode);
+        if (threadShouldExit()) return;
         if (poll.state == AccountClient::Poll::expired) break;
         if (poll.state != AccountClient::Poll::approved) continue;   // pending, or a network blip
 
@@ -242,6 +253,7 @@ void LicenseService::doCheck (bool userAsked)
     if (userAsked) setActivity (Status::Activity::contacting);
 
     const auto answer = client.checkLicense (token);
+    if (threadShouldExit()) return;
 
     juce::String note;
     bool noteIsError = false, haveNote = userAsked, stale = false;
@@ -250,7 +262,9 @@ void LicenseService::doCheck (bool userAsked)
         stale = account.token != token;                     // signed out meanwhile
         if (! stale)
         {
-        const auto now = nowSeconds();
+        // Stamp answers on the same forward-only clock evaluate() uses; otherwise a
+        // clock that was once wrong could leave a real owner looking expired.
+        const auto now = juce::jmax (nowSeconds(), trial.lastSeen);
 
         switch (answer.state)
         {
@@ -259,6 +273,7 @@ void LicenseService::doCheck (bool userAsked)
                 account.checkedAt = now;
                 account.email = answer.email;
                 store.saveAccount (account);
+                haveNote = true;                            // clears any earlier "couldn't reach" note
                 break;
 
             case AccountClient::Ownership::notOwned:        // never bought, or refunded

@@ -44,7 +44,7 @@ Response request (const juce::String& path, const char* method,
                                                                                : juce::URL::ParameterHandling::inAddress)
                              .withExtraHeaders (headers)
                              .withHttpRequestCmd (method)
-                             .withConnectionTimeoutMs (8000)
+                             .withConnectionTimeoutMs (5000)
                              .withNumRedirectsToFollow (0)
                              .withStatusCode (&status);
 

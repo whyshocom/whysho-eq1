@@ -30,8 +30,9 @@ isn't equalised. It never mutes, adds noise, or refuses to load.
 3. The plugin polls `POST /api/plugin/login/poll` until it gets a session token
    (valid for a year), then asks `GET /api/plugin/license?product=eq1`.
 
-`{ owned: true }` unlocks. The answer is re-checked in the background about every
-12 hours while a DAW is open.
+`{ owned: true }` unlocks. The answer is re-checked in the background once each time a
+DAW starts using EQ1, and every 12 hours while it stays open. Merely scanning the
+plugin never touches the network.
 
 What happens with each answer:
 

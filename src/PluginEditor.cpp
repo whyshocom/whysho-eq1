@@ -198,7 +198,14 @@ void WhyshoEQAudioProcessorEditor::openLicense()
     addAndMakeVisible (*licenseDialog);
     licenseDialog->setBounds (getLocalBounds());
     licenseDialog->toFront (true);
-    licenseDialog->onClose = [this] { licenseDialog.reset(); repaint(); };
+    licenseDialog->onClose = [this]
+    {
+        // Deferred: the dialog must not be destroyed from inside its own callback.
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<WhyshoEQAudioProcessorEditor> (this)]
+        {
+            if (safe != nullptr) { safe->licenseDialog.reset(); safe->repaint(); }
+        });
+    };
 }
 
 void WhyshoEQAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)

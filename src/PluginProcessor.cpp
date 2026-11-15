@@ -59,7 +59,8 @@ void WhyshoEQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // gains instead of fading in from silence.
     eqEngine.setParameters (buildSnapshot());
     eqEngine.snapSmoothers();
-    setLatencySamples (eqEngine.getLatencySamples());
+    // Switched off (trial over, no license) = plain passthrough, which has no latency.
+    setLatencySamples (licenseService->unlocked() ? eqEngine.getLatencySamples() : 0);
 }
 
 bool WhyshoEQAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
