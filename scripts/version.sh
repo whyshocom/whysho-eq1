@@ -4,9 +4,12 @@
 #
 # Resolution order:
 #   1. $WHYSHO_VERSION environment variable, if set (CI may pass it through).
-#   2. The current git tag, if HEAD is exactly on a `vX.Y.Z` tag.
-#   3. The most recent `vX.Y.Z` tag reachable from HEAD.
-#   4. The fallback default `0.1.0`.
+#   2. The version in CMakeLists.txt (`project(... VERSION X.Y.Z)`): the one
+#      place the version is written, and what the plugin binary reports.
+#
+# With --check-tag, additionally fail if HEAD is on a `v*` tag that doesn't
+# match, so a release can never ship an installer labelled differently from
+# the plugin inside it.
 #
 # A leading `v` is stripped so the output is a bare semantic version
 # (e.g. `1.2.3`), suitable for installer filenames and Inno Setup / pkgbuild.
@@ -19,7 +22,12 @@
 
 set -euo pipefail
 
-DEFAULT_VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CMAKE_VERSION="$(sed -nE 's/^project\(.*VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "${SCRIPT_DIR}/../CMakeLists.txt" | head -n1)"
+if [[ -z "${CMAKE_VERSION}" ]]; then
+    echo "version.sh: could not read the version from CMakeLists.txt" >&2
+    exit 1
+fi
 
 strip_v() {
     # Remove a single leading 'v' or 'V' if present.
@@ -32,25 +40,14 @@ if [[ -n "${WHYSHO_VERSION:-}" ]]; then
     exit 0
 fi
 
-# 2 & 3. Try git. Guard everything so a non-git checkout still yields the default.
-if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
-    # Exact tag on HEAD?
-    if exact_tag="$(git describe --tags --exact-match 2>/dev/null)"; then
-        if [[ "${exact_tag}" == v* || "${exact_tag}" == V* ]]; then
-            strip_v "${exact_tag}"
-            exit 0
-        fi
-    fi
-
-    # Most recent v* tag reachable from HEAD (abbreviated form is fine; we only
-    # use the tag name portion).
-    if nearest_tag="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)"; then
-        if [[ -n "${nearest_tag}" ]]; then
-            strip_v "${nearest_tag}"
-            exit 0
+# 2. CMakeLists.txt, optionally checked against the tag on HEAD.
+if [[ "${1:-}" == "--check-tag" ]] && command -v git >/dev/null 2>&1; then
+    if tag="$(git describe --tags --exact-match --match 'v*' 2>/dev/null)"; then
+        if [[ "$(strip_v "${tag}")" != "${CMAKE_VERSION}" ]]; then
+            echo "version.sh: tag ${tag} does not match CMakeLists.txt version ${CMAKE_VERSION}" >&2
+            exit 1
         fi
     fi
 fi
 
-# 4. Fallback.
-printf '%s' "${DEFAULT_VERSION}"
+printf '%s' "${CMAKE_VERSION}"

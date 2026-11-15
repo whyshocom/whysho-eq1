@@ -63,7 +63,7 @@ void WhyshoLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w
                                           float pos, float a0, float a1, juce::Slider& s)
 {
     const auto b = juce::Rectangle<float> (x, y, w, h).reduced (6.0f);
-    const auto r = juce::jmin (b.getWidth(), b.getHeight()) * 0.5f;
+    const auto r = juce::jmax (8.0f, juce::jmin (b.getWidth(), b.getHeight()) * 0.5f);
     const auto c = b.getCentre();
     const float angle = a0 + pos * (a1 - a0);
 
@@ -145,7 +145,7 @@ void WhyshoLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton&
     g.fillEllipse (kx - knobR, track.getCentreY() - knobR, knobR * 2, knobR * 2);
 
     // --- label ---
-    g.setColour (on ? t.text : t.textDim.withAlpha (hl ? 1.0f : 0.85f));
+    g.setColour (on || hl ? t.text : t.textDim);
     g.setFont (themeFont (11.0f));
     g.drawText (b.getButtonText(), bounds.withTrimmedLeft (6), juce::Justification::centredLeft);
 }

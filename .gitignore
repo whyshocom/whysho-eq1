@@ -21,3 +21,23 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# IDE / local build config
+.vs/
+out/
+CMakeUserPresets.json
+compile_commands.json
+xcuserdata/
+
+# Never commit secrets, keys, certificates or local databases
+.env
+.env.*
+!.env.example
+*PRIVATE*
+*.pem
+*.key
+*.p12
+*.pfx
+*.db
+*.sqlite
+node_modules/

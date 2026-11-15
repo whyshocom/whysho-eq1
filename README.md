@@ -37,30 +37,30 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - **Themes** — switchable palettes, persisted with the project. **Paper** (the whysho editorial/paper brand look) is the default; **Midnight** and **Graphite** are dark alternatives
 - Resizable UI
 
-**Theming / brand** — The visual system lives in `src/gui/Theme.h`: one `Theme` struct (colors + per-band node palette + style flags) and a small catalogue. "Paper" is the shared whysho brand look intended across the whole suite (and the website). To add a theme, append one entry to the catalogue — every component reads `theme().<token>` live, so no other code changes. The selector is in the top bar; the choice is saved in the plugin state (`uiTheme`).
+**Theming / brand** — The visual system lives in `src/gui/Theme.h`: one `Theme` struct (colors + per-band node palette + style flags) and a small catalogue. "Paper" is the shared whysho brand look intended across the whole suite (and the website). To add a theme, append one entry to the catalogue — every component reads `theme().<token>` live, so no other code changes. The selector sits next to the presets; the choice is one preference per computer (not part of a project or preset) and every open EQ1 window follows it.
 
 **Licensing** — see [`docs/LICENSING.md`](docs/LICENSING.md)
-- Online **activation** → machine-bound, **Ed25519-signed** license, verified **offline** on every load
-- 14-day local trial, offline grace, periodic re-check
-- Layered **anti-tamper** (obfuscated strings, redundant gate, anti-debug)
+- Account-based, like the rest of the whysho suite: sign in with the browser to a whysho.com account that owns EQ1
+- 14-day trial; after it, EQ1 switches off on that computer (audio passes through unchanged) until it is signed in
+- Works offline for 30 days between checks; one sign-in unlocks every open instance
 
 ---
 
 ## Repository layout
 
 ```
-CMakeLists.txt        Root build (fetches JUCE + Monocypher)
+CMakeLists.txt        Root build (fetches JUCE); the version lives here
 src/                  Plugin: DSP, GUI, licensing
-server/               License activation server (Node/TypeScript)  ← independent
+tests/                Unit tests: licensing rules, DSP stress
 packaging/            Inno Setup (.exe) + macOS .pkg installer configs
 .github/workflows/    CI: build + package + release on Win & macOS
 tools/                Offscreen GUI snapshot renderer (dev only)
-docs/                 Licensing + architecture notes
+docs/                 Licensing notes
 ```
 
 ## Building
 
-**Requirements:** CMake ≥ 3.22, a C++17 compiler. First configure downloads JUCE 8 + Monocypher.
+**Requirements:** CMake ≥ 3.22, a C++17 compiler. First configure downloads JUCE 8.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -68,6 +68,11 @@ cmake --build build --config Release
 ```
 
 Artefacts land in `build/WhyshoEQ1_artefacts/Release/` (`VST3/`, `AU/`, `Standalone/`).
+
+**Tests:**
+```bash
+ctest --test-dir build -C Release --output-on-failure
+```
 
 **Installers** (CI builds these automatically; locally):
 ```bash
@@ -85,18 +90,18 @@ Install locations and code-signing/notarization setup are documented in [`packag
    - **Ableton/Reaper/Cubase/Logic:** select EQ1's Sidechain bus as the send/aux input.
 4. That band now ducks/boosts in response to the sidechain signal.
 
-## Security / "non-crackable" — honest note
+## Copy protection: honest note
 
-No locally-run plugin can be made truly uncrackable; anything that executes on a user's
-machine can, in principle, be bypassed. whysho EQ1 instead uses a **layered deterrent**:
-signed machine-bound licenses verified offline, obfuscated secrets, a redundant audio-path
-gate, and anti-debug probes. The goal is to make cracking expensive and casual sharing
-impractical — not to promise the impossible. See [`docs/LICENSING.md`](docs/LICENSING.md).
+No plugin that runs on the user's own machine can be made uncrackable, and this code is
+public. The trial and the account check are there to keep honest use simple and casual
+sharing inconvenient, not to promise the impossible. What they do and don't stop is
+spelled out in [`docs/LICENSING.md`](docs/LICENSING.md).
 
 ## Roadmap
 
 - Spectrum **grab**/collision detection, per-band gain-match
 - Linear-phase IR regeneration off the audio thread (background)
-- Preset browser + factory presets, A/B compare, undo/redo
+- Undo/redo, preset rename/delete
+- Signed license responses and a server-side trial (needs website changes)
 - CLAP format, AAX (Pro Tools)
 - Inter-plugin shared sidechain bus across the whysho suite

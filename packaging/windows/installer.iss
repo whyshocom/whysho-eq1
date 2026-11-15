@@ -20,7 +20,7 @@
 ; =============================================================================
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 
 ; Repo root (default: two levels up from packaging\windows\).

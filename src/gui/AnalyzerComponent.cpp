@@ -229,79 +229,133 @@ void AnalyzerComponent::drawNodes (juce::Graphics& g)
         g.fillEllipse (x - r, y - r, r * 2, r * 2);
         g.setColour (t.light ? t.text.withAlpha (0.85f) : t.bg);
         g.drawEllipse (x - r, y - r, r * 2, r * 2, sel ? 2.4f : 1.6f);
-        g.setColour (juce::Colours::white);
-        g.setFont (juce::Font (11.0f, juce::Font::bold));
+        g.setColour (onColour (nodeCol));
+        g.setFont (themeFont (11.0f, true));
         g.drawText (juce::String (i + 1), (int) (x - r), (int) (y - r), (int) (r * 2), (int) (r * 2),
                     juce::Justification::centred);
     }
 }
 
 // ---- interaction ----------------------------------------------------------
+void AnalyzerComponent::gesture (int band, const char* suffix, bool begin)
+{
+    if (auto* p = proc.state().getParameter (pid::band (band, suffix)))
+        begin ? p->beginChangeGesture() : p->endChangeGesture();
+}
+
+// A single change, reported to the host as one complete gesture (so automation
+// recording and host undo see it properly).
+void AnalyzerComponent::setBandValue (int band, const char* suffix, float realValue)
+{
+    if (auto* p = proc.state().getParameter (pid::band (band, suffix)))
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (realValue));
+        p->endChangeGesture();
+    }
+}
+
+void AnalyzerComponent::createBandAt (juce::Point<float> pos)
+{
+    for (int i = 0; i < kNumBands; ++i)
+    {
+        if (getParam (pid::band (i, pid::on)) > 0.5f) continue;
+
+        // A fresh bell, whatever this slot was used for before.
+        setBandValue (i, pid::type, (float) FilterType::Bell);
+        setBandValue (i, pid::q, 1.0f);
+        setBandValue (i, pid::chan, 0.0f);
+        setBandValue (i, pid::dyn, 0.0f);
+        setBandValue (i, pid::solo, 0.0f);
+        setBandValue (i, pid::freq, juce::jlimit (minHz, 20000.0f, xToFreq (pos.x)));
+        setBandValue (i, pid::gain, juce::jlimit (-30.0f, 30.0f, yToDb (pos.y)));
+        setBandValue (i, pid::on, 1.0f);
+
+        selected = i;
+        if (onBandSelected) onBandSelected (i);
+        repaint();
+        return;
+    }
+}
+
 void AnalyzerComponent::mouseDown (const juce::MouseEvent& e)
 {
-    int b = bandAtPixel (e.position.toFloat());
+    const int b = bandAtPixel (e.position);
     if (e.mods.isPopupMenu())
     {
         if (b < 0) return;
+        selected = b;
+        if (onBandSelected) onBandSelected (b);
+        repaint();
+
         juce::PopupMenu m;
+        m.setLookAndFeel (&getLookAndFeel());
         for (int t = 0; t < kFilterTypeNames.size(); ++t)
             m.addItem (100 + t, kFilterTypeNames[t], true, (int) getParam (pid::band (b, pid::type)) == t);
         m.addSeparator();
         for (int c = 0; c < kChannelModeNames.size(); ++c)
-            m.addItem (200 + c, "Chan: " + kChannelModeNames[c], true, (int) getParam (pid::band (b, pid::chan)) == c);
+            m.addItem (200 + c, "Channel: " + kChannelModeNames[c], true, (int) getParam (pid::band (b, pid::chan)) == c);
         m.addSeparator();
         m.addItem (300, "Dynamic", true, getParam (pid::band (b, pid::dyn)) > 0.5f);
-        m.addItem (301, "Disable band");
-        m.showMenuAsync (juce::PopupMenu::Options(), [this, b] (int r)
+        m.addItem (301, "Remove band");
+
+        // The editor can be closed while the menu is open.
+        juce::Component::SafePointer<AnalyzerComponent> safe (this);
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, b] (int r)
         {
-            if (r >= 100 && r < 200) setBandParam (b, pid::type, (float) (r - 100) / (kFilterTypeNames.size() - 1));
-            else if (r >= 200 && r < 300) setBandParam (b, pid::chan, (float) (r - 200) / (kChannelModeNames.size() - 1));
-            else if (r == 300) { auto cur = getParam (pid::band (b, pid::dyn)) > 0.5f; setBandParam (b, pid::dyn, cur ? 0.0f : 1.0f); }
-            else if (r == 301) setBandParam (b, pid::on, 0.0f);
+            if (safe == nullptr) return;
+            if (r >= 100 && r < 200)      safe->setBandValue (b, pid::type, (float) (r - 100));
+            else if (r >= 200 && r < 300) safe->setBandValue (b, pid::chan, (float) (r - 200));
+            else if (r == 300)            safe->setBandValue (b, pid::dyn, safe->getParam (pid::band (b, pid::dyn)) > 0.5f ? 0.0f : 1.0f);
+            else if (r == 301)            safe->setBandValue (b, pid::on, 0.0f);
         });
         return;
     }
 
-    if (b < 0) // create a band at click position on empty space
-    {
-        for (int i = 0; i < kNumBands; ++i)
-            if (getParam (pid::band (i, pid::on)) < 0.5f)
-            {
-                setBandParam (i, pid::on, 1.0f);
-                setBandFreqGain (i, xToFreq (e.position.x), yToDb (e.position.y));
-                b = i; break;
-            }
-    }
-    if (b >= 0)
-    {
-        dragging = b; selected = b;
-        if (onBandSelected) onBandSelected (b);
-        repaint();
-    }
+    if (b < 0) return;      // empty space: nothing (double-click adds a band)
+
+    dragging = b; selected = b;
+    grabOffset = juce::Point<float> (freqToX (getParam (pid::band (b, pid::freq))),
+                                     dbToY (getParam (pid::band (b, pid::gain)))) - e.position;
+    gesture (b, pid::freq, true);
+    gesture (b, pid::gain, true);
+    if (onBandSelected) onBandSelected (b);
+    repaint();
 }
 
 void AnalyzerComponent::mouseDrag (const juce::MouseEvent& e)
 {
-    if (dragging >= 0)
-        setBandFreqGain (dragging, xToFreq (e.position.x), yToDb (e.position.y));
+    if (dragging < 0) return;
+    const auto p = e.position + grabOffset;
+    setBandFreqGain (dragging, xToFreq (p.x), yToDb (p.y));
 }
 
-void AnalyzerComponent::mouseUp (const juce::MouseEvent&) { dragging = -1; }
+void AnalyzerComponent::mouseUp (const juce::MouseEvent&)
+{
+    if (dragging >= 0)
+    {
+        gesture (dragging, pid::freq, false);
+        gesture (dragging, pid::gain, false);
+    }
+    dragging = -1;
+}
 
 void AnalyzerComponent::mouseDoubleClick (const juce::MouseEvent& e)
 {
-    int b = bandAtPixel (e.position.toFloat());
-    if (b >= 0) setBandParam (b, pid::on, 0.0f); // double-click node removes it
+    if (e.mods.isPopupMenu()) return;
+    const int b = bandAtPixel (e.position);
+    if (b >= 0) setBandValue (b, pid::on, 0.0f);   // double-click a node: remove it
+    else        createBandAt (e.position);         // double-click empty space: add a band there
 }
 
 void AnalyzerComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
-    int b = bandAtPixel (e.position.toFloat());
-    if (b < 0) b = selected;
+    // Only a node under the pointer reacts, so scrolling past the graph changes nothing.
+    const int b = bandAtPixel (e.position);
     if (b < 0) return;
-    if (auto* qp = proc.state().getParameter (pid::band (b, pid::q)))
-    {
-        const float cur = qp->getValue();
-        qp->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, cur + w.deltaY * 0.5f));
-    }
+
+    // Q moves by a ratio per wheel step (about 12%, a quarter of that with Shift).
+    const float steps = (w.isReversed ? -w.deltaY : w.deltaY) * (e.mods.isShiftDown() ? 0.5f : 2.0f);
+    const float q = getParam (pid::band (b, pid::q)) * std::pow (1.25f, steps);
+    setBandValue (b, pid::q, juce::jlimit (0.1f, 18.0f, q));
 }

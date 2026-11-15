@@ -55,7 +55,8 @@ private:
     bool slotB = false;
     std::unique_ptr<juce::AlertWindow> saveDialog;
 
-    void applyThemeChange (int index);
+    void applyTheme();
+    static constexpr int kHeaderH = 78;
     void rebuildPresetMenu();
     void selectPresetDelta (int d);
     void applyPresetSelection();

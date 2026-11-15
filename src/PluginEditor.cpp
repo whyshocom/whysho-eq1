@@ -40,14 +40,14 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     licenseBtn.setComponentID ("license");
     licenseBtn.onClick = [this] { openLicense(); };
 
-    // Theme selector (UI preference, persisted in plugin state).
+    // Theme selector: one preference for every EQ1 on this computer.
+    loadThemePreference();
     themeBox.addItemList (themeNames(), 1);
-    const int savedTheme = (int) proc.state().state.getProperty ("uiTheme", 0);
-    setThemeIndex (savedTheme);
-    themeBox.setSelectedId (currentThemeIndex() + 1, juce::dontSendNotification);
-    themeBox.onChange = [this] { applyThemeChange (themeBox.getSelectedId() - 1); };
+    themeBox.onChange = [this] { chooseTheme (themeBox.getSelectedId() - 1); };
+    themeBox.setTooltip ("Colour theme");
     addAndMakeVisible (themeBox);
-    applyThemeChange (currentThemeIndex());
+    themeBroadcaster().addChangeListener (this);
+    applyTheme();
 
     // Preset bar
     for (auto* b : { &prevBtn, &nextBtn, &saveBtn, &abBtn, &copyBtn }) addAndMakeVisible (b);
@@ -62,7 +62,7 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     proc.presetManager().captureTo (false); // seed slot A with current state
 
     setResizable (true, true);
-    setResizeLimits (860, 540, 1800, 1200);
+    setResizeLimits (940, 580, 1800, 1200);
     setSize (1020, 640);
     proc.license().markUsed();
     proc.license().addChangeListener (this);
@@ -72,13 +72,14 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
 WhyshoEQAudioProcessorEditor::~WhyshoEQAudioProcessorEditor()
 {
     proc.license().removeChangeListener (this);
+    themeBroadcaster().removeChangeListener (this);
     setLookAndFeel (nullptr);
 }
 
 juce::Slider& WhyshoEQAudioProcessorEditor::addKnob (const juce::String& label)
 {
     auto* s = new juce::Slider (juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
-    s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 13);
+    s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 56, 14);
     addAndMakeVisible (s); knobs.add (s);
     auto* l = new juce::Label ({}, label);
     l->setJustificationType (juce::Justification::centred);
@@ -96,10 +97,9 @@ juce::ToggleButton& WhyshoEQAudioProcessorEditor::addToggle (const juce::String&
     auto* b = new juce::ToggleButton (t); addAndMakeVisible (b); toggles.add (b); return *b;
 }
 
-void WhyshoEQAudioProcessorEditor::applyThemeChange (int index)
+void WhyshoEQAudioProcessorEditor::applyTheme()
 {
-    setThemeIndex (index);
-    proc.state().state.setProperty ("uiTheme", index, nullptr);
+    themeBox.setSelectedId (currentThemeIndex() + 1, juce::dontSendNotification);
     lnf.applyTheme();
     sendLookAndFeelChange();   // propagate to children (refreshes label colours)
     repaint();
@@ -158,19 +158,25 @@ void WhyshoEQAudioProcessorEditor::selectPresetDelta (int d)
 
 void WhyshoEQAudioProcessorEditor::doSavePreset()
 {
-    saveDialog = std::make_unique<juce::AlertWindow> ("Save Preset", "Name:", juce::MessageBoxIconType::NoIcon);
+    saveDialog = std::make_unique<juce::AlertWindow> ("Save Preset", "Name:", juce::MessageBoxIconType::NoIcon, this);
+    saveDialog->setLookAndFeel (&lnf);
     saveDialog->addTextEditor ("name", "My Preset");
     saveDialog->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
     saveDialog->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
-    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([this] (int r)
+
+    // The host can close the editor while this is open: never touch `this` blindly.
+    juce::Component::SafePointer<WhyshoEQAudioProcessorEditor> safe (this);
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([safe] (int r)
     {
+        if (safe == nullptr || safe->saveDialog == nullptr) return;
         if (r == 1)
         {
-            auto name = saveDialog->getTextEditorContents ("name").trim();
-            if (name.isNotEmpty()) { proc.presetManager().saveUser (name); rebuildPresetMenu(); }
+            // Keep the name a plain file name (no "../", no slashes).
+            const auto name = juce::File::createLegalFileName (safe->saveDialog->getTextEditorContents ("name").trim());
+            if (name.isNotEmpty()) { safe->proc.presetManager().saveUser (name); safe->rebuildPresetMenu(); }
         }
-        saveDialog->exitModalState (r);
-        saveDialog.reset();
+        safe->saveDialog->setLookAndFeel (nullptr);
+        safe->saveDialog.reset();
     }), false);
 }
 
@@ -195,7 +201,11 @@ void WhyshoEQAudioProcessorEditor::openLicense()
     licenseDialog->onClose = [this] { licenseDialog.reset(); repaint(); };
 }
 
-void WhyshoEQAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster*) { updateLicenseUi(); }
+void WhyshoEQAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
+{
+    if (source == &themeBroadcaster()) applyTheme();
+    else                               updateLicenseUi();
+}
 
 void WhyshoEQAudioProcessorEditor::updateLicenseUi()
 {
@@ -216,22 +226,20 @@ void WhyshoEQAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (theme().bg);
     g.setColour (theme().panel);
-    g.fillRect (0, 0, getWidth(), 54);                    // top bar
+    g.fillRect (0, 0, getWidth(), kHeaderH);              // top bar
 }
 
 void WhyshoEQAudioProcessorEditor::resized()
 {
     auto r = getLocalBounds();
-    auto top = r.removeFromTop (54).reduced (8, 6);
+    auto top = r.removeFromTop (kHeaderH).reduced (8, 6);
 
     brand.setBounds (top.removeFromLeft (150));
-    licenseBtn.setBounds (top.removeFromRight (90).reduced (2, 4));
-    themeBox.setBounds (top.removeFromRight (104).reduced (3, 4));
 
     auto placeCombo = [&] (int idx, const juce::String& cap, int w)
     {
         auto cell = top.removeFromLeft (w).reduced (3, 2);
-        combos[idx]->setBounds (cell);
+        combos[idx]->setBounds (cell.withSizeKeepingCentre (cell.getWidth(), 30));
         juce::ignoreUnused (cap);
     };
     auto placeKnob = [&] (int idx, int w)
@@ -241,13 +249,13 @@ void WhyshoEQAudioProcessorEditor::resized()
         knobs[idx]->setBounds (cell);
     };
 
-    for (int i = 0; i < 4; ++i) placeKnob (i, 52);
+    for (int i = 0; i < 4; ++i) placeKnob (i, 58);
     top.removeFromLeft (6);
     placeCombo (0, "Phase", 108);
     placeCombo (1, "OS", 70);
     placeCombo (2, "Analyzer", 96);
     top.removeFromLeft (6);
-    for (int i = 0; i < 3; ++i) toggles[i]->setBounds (top.removeFromLeft (84).reduced (2, 6));
+    for (int i = 0; i < 3; ++i) toggles[i]->setBounds (top.removeFromLeft (88).reduced (2, 6));
 
     // --- preset bar (second row) ---
     auto pr = r.removeFromTop (34).reduced (8, 4);
@@ -259,6 +267,8 @@ void WhyshoEQAudioProcessorEditor::resized()
     pr.removeFromLeft (10);
     abBtn.setBounds    (pr.removeFromLeft (44).reduced (2, 1));
     copyBtn.setBounds  (pr.removeFromLeft (60).reduced (2, 1));
+    licenseBtn.setBounds (pr.removeFromRight (96).reduced (2, 1));
+    themeBox.setBounds (pr.removeFromRight (110).reduced (2, 1));
 
     auto bottom = r.removeFromBottom (150).reduced (8, 6);
     bandEditor.setBounds (bottom);

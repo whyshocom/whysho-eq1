@@ -17,7 +17,7 @@ packaging/
   macos/welcome.html               Installer welcome pane
   macos/conclusion.html            Installer conclusion pane
 scripts/
-  version.sh / version.ps1         Resolve version from git tag (default 0.1.0)
+  version.sh / version.ps1         Read the version from CMakeLists.txt
   build-windows-installer.ps1      Compile the Windows installer via ISCC
   build-macos-installer.sh         Build + (optionally) sign/notarize the .pkg
 ```
@@ -57,7 +57,7 @@ On macOS, for a universal2 binary add:
 Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`choco install innosetup`).
 
 ```powershell
-pwsh scripts/build-windows-installer.ps1              # version from git tag / 0.1.0
+pwsh scripts/build-windows-installer.ps1              # version from CMakeLists.txt
 pwsh scripts/build-windows-installer.ps1 -Version 1.2.3
 ```
 
@@ -69,7 +69,7 @@ Requires the Xcode command-line tools (`pkgbuild`, `productbuild`, `codesign`,
 `xcrun notarytool` — all included with Xcode).
 
 ```bash
-scripts/build-macos-installer.sh                      # version from git tag / 0.1.0
+scripts/build-macos-installer.sh                      # version from CMakeLists.txt
 scripts/build-macos-installer.sh --version 1.2.3
 ```
 
@@ -80,32 +80,32 @@ Without signing secrets the script still produces a working **unsigned** package
 
 ## Versioning
 
-The version is resolved by `scripts/version.sh` (and `version.ps1`) in this order:
+The version is written in exactly one place: `project(WhyshoEQ1 VERSION X.Y.Z)` in
+`CMakeLists.txt`. The plugin binaries get it from CMake, and the installers get it
+from `scripts/version.sh` / `version.ps1`, which read the same line
+(`$WHYSHO_VERSION` overrides it for one-off local builds).
 
-1. `$WHYSHO_VERSION` environment variable, if set.
-2. The exact git tag on `HEAD`, if it matches `vX.Y.Z`.
-3. The most recent reachable `vX.Y.Z` tag.
-4. Fallback default: `0.1.0`.
-
-A leading `v` is stripped. So tagging a commit `v1.4.0` and pushing produces
-installers named `WhyshoEQ1-1.4.0-Windows.exe` / `WhyshoEQ1-1.4.0-macOS.pkg`,
-and CI attaches them to the `v1.4.0` GitHub Release.
+To release: bump the version in `CMakeLists.txt`, commit, then tag that commit.
 
 ```bash
-git tag v1.4.0 && git push origin v1.4.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
+
+CI refuses to build a `v*` tag that doesn't match `CMakeLists.txt`, so an installer
+can't be labelled differently from the plugin inside it.
 
 ## CI overview (`.github/workflows/build.yml`)
 
 - **Triggers:** push to `main` or `claude/**`, push of a `v*` tag, or manual
   `workflow_dispatch`.
-- **Matrix:** `windows-latest` and `macos-14` (Apple Silicon; builds universal2).
-- **Steps:** checkout (full history for tags) → resolve version → restore the
-  CPM/FetchContent dependency cache → cmake configure + build Release → install
-  Inno Setup (Windows) → run the packaging script → upload `dist/*` as an
-  artifact (`WhyshoEQ1-windows` / `WhyshoEQ1-macos`).
-- **Release:** on a `v*` tag, a final job downloads both artifacts and publishes
-  them to a GitHub Release via `softprops/action-gh-release`.
+- **Matrix:** `windows-latest` and a self-hosted macOS runner (builds universal2).
+- **Steps:** checkout → read the version (and check it against the tag) → restore
+  the FetchContent cache → cmake configure + build Release → run the tests
+  (`ctest`) → install Inno Setup (Windows) → run the packaging script → upload
+  `dist/*` as an artifact (`WhyshoEQ1-windows` / `WhyshoEQ1-macos`).
+- **Release:** on a `v*` tag, if the build succeeded, a final job attaches the
+  installers to a **draft** GitHub Release. Check them, then publish it by hand.
+- Signing secrets are only passed to tag builds.
 
 Signing is entirely driven by repository **secrets** (below). If they are absent,
 builds still succeed and produce unsigned installers.

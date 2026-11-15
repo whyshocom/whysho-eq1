@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_graphics/juce_graphics.h>
+#include <juce_events/juce_events.h>
 #include <array>
 #include <cmath>
 
@@ -32,12 +33,12 @@ inline const std::array<Theme, 3>& themes()
             juce::Colour (0xffFBF9F2), // panel2 (fields)
             juce::Colour (0xffCBC4B0), // grid
             juce::Colour (0xff1A1813), // text
-            juce::Colour (0xff6E6857), // textDim
+            juce::Colour (0xff5E5949), // textDim (5.6:1 on panel)
             juce::Colour (0xffC5542F), // accent (terracotta)
             juce::Colour (0xff8E6FD6), // accent2 (purple)
             juce::Colour (0xff3F8F56), // good
             juce::Colour (0xffC27C2B), // warn
-            juce::Colour (0xffC0392B), // bad
+            juce::Colour (0xffB03226), // bad (5:1 on panel)
             juce::Colour (0xff14110B), // curve (near-black)
             juce::Colour (0x3C5B86B4), // specPre
             juce::Colour (0x665B86B4), // specPost (blue fill)
@@ -86,6 +87,36 @@ inline const Theme& theme()
 
 inline int  currentThemeIndex() { return detail::activeThemeIndex(); }
 inline void setThemeIndex (int i) { detail::activeThemeIndex() = (i >= 0 && i < (int) themes().size()) ? i : 0; }
+
+// The theme is one preference for the whole computer (not part of a project or
+// preset): every open EQ1 window follows it, and it is remembered between sessions.
+inline juce::ChangeBroadcaster& themeBroadcaster() { static juce::ChangeBroadcaster b; return b; }
+
+inline juce::File themePreferenceFile()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+             .getChildFile ("Whysho").getChildFile ("EQ1").getChildFile ("theme.txt");
+}
+
+// Reads the saved theme the first time it is called in this process.
+inline void loadThemePreference()
+{
+    static bool loaded = false;
+    if (std::exchange (loaded, true)) return;
+    const auto name = themePreferenceFile().loadFileAsString().trim();
+    for (int i = 0; i < (int) themes().size(); ++i)
+        if (themes()[(size_t) i].name == name) setThemeIndex (i);
+}
+
+// The user picked a theme: remember it and restyle every open editor.
+inline void chooseTheme (int index)
+{
+    setThemeIndex (index);
+    auto f = themePreferenceFile();
+    f.getParentDirectory().createDirectory();
+    f.replaceWithText (theme().name);
+    themeBroadcaster().sendSynchronousChangeMessage();
+}
 
 inline juce::StringArray themeNames()
 {

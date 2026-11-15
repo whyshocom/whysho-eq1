@@ -15,11 +15,27 @@ build-tooling purposes. Replace it with text reviewed by legal counsel
 before any public commercial release.
 
 1. LICENSE GRANT
-   Subject to Your compliance with this Agreement and payment of all
-   applicable license fees, whysho grants You a non-exclusive,
-   non-transferable license to install and use the Software on computers
-   that You own or control, solely for Your own music production and
-   audio-processing purposes.
+   Subject to Your compliance with this Agreement, whysho grants You a
+   non-exclusive, non-transferable license to install and use the
+   Software on computers that You own or control, solely for Your own
+   music production and audio-processing purposes, as follows:
+
+   (a) Trial. You may use the Software free of charge for fourteen (14)
+       days from first use on a computer. When the trial ends, the
+       Software stops processing audio on that computer (audio passes
+       through unchanged) until it is unlocked.
+
+   (b) Purchased license. The Software is unlocked by signing it in to
+       a whysho account that has purchased it. The license belongs to
+       that account and is for the account holder's own use.
+
+   (c) Online check. To sign in and to confirm the purchase, the
+       Software contacts whysho.com and sends the account's session
+       token and a device name (for example the computer's name) that
+       is shown to You when You approve the sign-in. It re-checks from
+       time to time; after about thirty (30) days without reaching
+       whysho.com, an internet connection is needed again to keep the
+       Software unlocked.
 
 2. RESTRICTIONS
    You may not, and may not permit any third party to: (a) rent, lease,

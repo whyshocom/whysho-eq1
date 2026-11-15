@@ -35,6 +35,9 @@ private:
     int   bandAtPixel (juce::Point<float>) const;
     void  setBandFreqGain (int band, float hz, float db);
     void  setBandParam (int band, const char* suffix, float value01);
+    void  setBandValue (int band, const char* suffix, float realValue);   // one-shot, wrapped in a gesture
+    void  gesture (int band, const char* suffix, bool begin);
+    void  createBandAt (juce::Point<float>);
     float getParam (const juce::String& id) const;
 
     void drawGrid (juce::Graphics&);
@@ -52,6 +55,7 @@ private:
     double displaySR = 0.0;
     int selected = 0;
     int dragging = -1;
+    juce::Point<float> grabOffset;       // mouse-to-node offset, so a grabbed node doesn't jump
 
     static constexpr float minHz = 20.0f, maxHz = 22000.0f;
     static constexpr float minDb = -30.0f, maxDb = 30.0f;

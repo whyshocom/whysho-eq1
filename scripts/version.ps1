@@ -5,9 +5,8 @@
 .DESCRIPTION
     Resolution order:
       1. $env:WHYSHO_VERSION, if set.
-      2. The current git tag, if HEAD is exactly on a `vX.Y.Z` tag.
-      3. The most recent `vX.Y.Z` tag reachable from HEAD.
-      4. The fallback default `0.1.0`.
+      2. The version in CMakeLists.txt (`project(... VERSION X.Y.Z)`): the one
+         place the version is written, and what the plugin binary reports.
 
     A leading `v` is stripped so the output is a bare semantic version
     (e.g. `1.2.3`). The resolved version string is written to stdout.
@@ -18,7 +17,6 @@
 
 $ErrorActionPreference = 'Stop'
 
-$DefaultVersion = '0.1.0'
 
 function Remove-VPrefix {
     param([string]$Value)
@@ -31,30 +29,11 @@ if ($env:WHYSHO_VERSION) {
     exit 0
 }
 
-# 2 & 3. Try git. Any failure falls through to the default.
-$gitAvailable = $null -ne (Get-Command git -ErrorAction SilentlyContinue)
-if ($gitAvailable) {
-    try {
-        $null = git rev-parse --git-dir 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            # Exact tag on HEAD?
-            $exactTag = git describe --tags --exact-match 2>$null
-            if ($LASTEXITCODE -eq 0 -and $exactTag -and ($exactTag -match '^[vV]')) {
-                Write-Output (Remove-VPrefix $exactTag)
-                exit 0
-            }
-
-            # Most recent v* tag reachable from HEAD.
-            $nearestTag = git describe --tags --abbrev=0 --match 'v*' 2>$null
-            if ($LASTEXITCODE -eq 0 -and $nearestTag) {
-                Write-Output (Remove-VPrefix $nearestTag)
-                exit 0
-            }
-        }
-    } catch {
-        # Ignore and fall through to default.
-    }
+# 2. CMakeLists.txt.
+$cmake = Get-Content (Join-Path $PSScriptRoot '..\CMakeLists.txt') -Raw
+if ($cmake -match 'project\([^)]*VERSION\s+(\d+\.\d+\.\d+)') {
+    Write-Output $Matches[1]
+    exit 0
 }
-
-# 4. Fallback.
-Write-Output $DefaultVersion
+Write-Error 'version.ps1: could not read the version from CMakeLists.txt'
+exit 1

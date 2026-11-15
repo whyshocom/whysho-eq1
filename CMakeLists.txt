@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.22)
 
+# macOS: universal binary for macOS 11+. Must be set before project().
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
+    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "macOS architectures")
+endif()
+
+# Windows: link the C++ runtime statically, so the plugin loads on machines
+# without the Visual C++ redistributable installed.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# The one place the version is written: plugin binaries, installers and CI all
+# read it from here (scripts/version.sh).
 project(WhyshoEQ1 VERSION 0.2.0 LANGUAGES C CXX)
 
 # ---------------------------------------------------------------------------
@@ -13,12 +25,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
-endif()
-
-# Universal binaries on macOS (x86_64 + arm64) unless overridden by CI.
-if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
-    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "" FORCE)
 endif()
 
 include(FetchContent)
