@@ -64,11 +64,14 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     setResizable (true, true);
     setResizeLimits (860, 540, 1800, 1200);
     setSize (1020, 640);
-    startTimerHz (4);
+    proc.license().markUsed();
+    proc.license().addChangeListener (this);
+    updateLicenseUi();
 }
 
 WhyshoEQAudioProcessorEditor::~WhyshoEQAudioProcessorEditor()
 {
+    proc.license().removeChangeListener (this);
     setLookAndFeel (nullptr);
 }
 
@@ -188,17 +191,25 @@ void WhyshoEQAudioProcessorEditor::openLicense()
     licenseDialog = std::make_unique<LicenseDialog> (proc);
     addAndMakeVisible (*licenseDialog);
     licenseDialog->setBounds (getLocalBounds());
+    licenseDialog->toFront (true);
     licenseDialog->onClose = [this] { licenseDialog.reset(); repaint(); };
 }
 
-void WhyshoEQAudioProcessorEditor::timerCallback()
+void WhyshoEQAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster*) { updateLicenseUi(); }
+
+void WhyshoEQAudioProcessorEditor::updateLicenseUi()
 {
-    const auto& i = proc.licenseInfo;
-    licenseBtn.setColour (juce::TextButton::textColourOffId,
-                          i.state == lic::LicenseState::Licensed ? theme().good
-                        : i.state == lic::LicenseState::Trial    ? theme().warn : theme().bad);
-    licenseBtn.setButtonText (i.state == lic::LicenseState::Licensed ? "Licensed"
-                            : i.state == lic::LicenseState::Trial    ? "Trial" : "Activate");
+    using Kind = lic::Verdict::Kind;
+    const auto s = proc.license().status();
+
+    juce::String text = "Sign in";
+    if (s.verdict.kind == Kind::licensed)   text = "Licensed";
+    else if (s.verdict.kind == Kind::trial) text = "Trial: " + juce::String (s.verdict.trialDaysLeft) + "d";
+    licenseBtn.setButtonText (text);
+    licenseBtn.setTooltip ("Your whysho account and license");
+
+    // Trial over, no license: the plugin is off, and the account panel stays up.
+    if (! s.unlocked()) openLicense();
 }
 
 void WhyshoEQAudioProcessorEditor::paint (juce::Graphics& g)

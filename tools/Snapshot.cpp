@@ -24,7 +24,7 @@ static void renderShot (int w, int h, const juce::File& out, bool openLicense, i
 
     // No addToDesktop(): software-render the component tree offscreen (headless).
     std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
-    ed->setBounds (0, 0, w, h);
+    if (w > 0) ed->setBounds (0, 0, w, h);     // w == 0: the editor's own default size
     ed->setVisible (true);
 
     if (openLicense)
@@ -45,8 +45,12 @@ int main (int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI gui;
     const juce::File dir (argc > 1 ? juce::String (argv[1]) : juce::File::getCurrentWorkingDirectory().getFullPathName());
     dir.createDirectory();
-    renderShot (1100, 680, dir.getChildFile ("whysho-eq1-main.png"),     false, 0); // Paper (default)
-    renderShot (1100, 680, dir.getChildFile ("whysho-eq1-midnight.png"), false, 1); // Midnight
-    renderShot (1100, 680, dir.getChildFile ("whysho-eq1-license.png"),  true,  0);
+    const char* names[] = { "paper", "midnight", "graphite" };
+    for (int t = 0; t < 3; ++t)
+    {
+        renderShot (0, 0,     dir.getChildFile (juce::String ("eq1-") + names[t] + ".png"),         false, t);
+        renderShot (0, 0,     dir.getChildFile (juce::String ("eq1-") + names[t] + "-account.png"), true,  t);
+    }
+    renderShot (860, 540, dir.getChildFile ("eq1-paper-min.png"), false, 0);   // smallest allowed size
     return 0;
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_graphics/juce_graphics.h>
 #include <array>
+#include <cmath>
 
 namespace wsho::gui
 {
@@ -97,6 +98,16 @@ inline juce::Colour bandColour (int band)
 {
     const auto& pal = theme().nodePalette;
     return pal[(size_t) (band % (int) pal.size())];
+}
+
+// Readable text colour (near-black or near-white) for drawing on top of `fill`.
+inline juce::Colour onColour (juce::Colour fill)
+{
+    auto lin = [] (float c) { return c <= 0.03928f ? c / 12.92f : std::pow ((c + 0.055f) / 1.055f, 2.4f); };
+    const float lum = 0.2126f * lin (fill.getFloatRed()) + 0.7152f * lin (fill.getFloatGreen())
+                    + 0.0722f * lin (fill.getFloatBlue());
+    // Whichever of the two gives the higher WCAG contrast ratio.
+    return (1.05f / (lum + 0.05f)) > ((lum + 0.05f) / 0.05f) ? juce::Colour (0xffFFFFFF) : juce::Colour (0xff14110B);
 }
 
 // Typography: monospace editorial face for Paper, clean sans for dark themes.

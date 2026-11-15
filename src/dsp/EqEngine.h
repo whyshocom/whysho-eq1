@@ -35,6 +35,10 @@ public:
     // main: in/out stereo buffer. side: optional sidechain (may be empty).
     void process (juce::AudioBuffer<float>& main, const juce::AudioBuffer<float>& side);
 
+    // Jump gain / mix smoothers to their targets (call after prepare + setParameters,
+    // so playback doesn't start with a fade-in).
+    void snapSmoothers();
+
     int  getLatencySamples() const { return latency; }
     double getSampleRate() const { return baseSampleRate; }
 
@@ -44,6 +48,7 @@ public:
     EqBand& band (int i) { return bands[(size_t) i]; }
 
 private:
+    void processChunk (juce::AudioBuffer<float>& main, const juce::AudioBuffer<float>& side);
     void processIIR (juce::AudioBuffer<float>& osMain, const juce::AudioBuffer<float>& osSide, double fsNow);
     void rebuildLinearPhase (double fsNow);
     void generateImpulseResponse (juce::AudioBuffer<float>& ir, double fsNow);
@@ -68,7 +73,7 @@ private:
     bool linActive = false;
 
     // scratch
-    juce::AudioBuffer<float> dryBuffer, sideUp;
+    juce::AudioBuffer<float> dryBuffer, sideStereo;
     juce::SmoothedValue<float> inGain, outGain, mixSmooth, autoGainComp;
 };
 

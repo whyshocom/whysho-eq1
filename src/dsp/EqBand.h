@@ -156,9 +156,9 @@ private:
             const double amt = std::min (1.0, over / 24.0);
             target = (float) (p.dynRangeDb * amt);
         }
-        // smooth the applied gain toward target (reuse release for recovery)
-        const double sc = target < dynGainDb ? atkC : relC;
-        dynGainDb = (float) (target + sc * (dynGainDb - target));
+        // The envelope above already has the attack / release times; smoothing
+        // again here made them ~32x slower than the knobs said.
+        dynGainDb = target;
         buildCascade (p.gainDb + dynGainDb);
     }
 
@@ -194,7 +194,10 @@ private:
         const bool hasFirst = (order % 2) != 0;
         for (int k = 0; k < nSecond; ++k)
         {
-            const double theta = M_PI * (2.0 * k + 1.0) / (2.0 * order);
+            // Butterworth pole angles: even orders sit at odd multiples of pi/2N,
+            // odd orders (which also have the real pole below) at multiples of pi/N.
+            const double theta = hasFirst ? M_PI * (k + 1.0) / order
+                                          : M_PI * (2.0 * k + 1.0) / (2.0 * order);
             const double Q = 1.0 / (2.0 * std::cos (theta));
             if (numSections < kMaxSections) coeffs[numSections++] = makePass (fs, p.freq, Q, high);
         }

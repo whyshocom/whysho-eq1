@@ -13,7 +13,7 @@ void EqEngine::prepare (double sampleRate, int maxBlockSize, int numChannels)
     numCh = juce::jmax (1, numChannels);
 
     dryBuffer.setSize (2, maxBlockSize);
-    sideUp.setSize (2, maxBlockSize * 16);
+    sideStereo.setSize (2, maxBlockSize);
 
     for (auto& b : bands) b.prepare (sampleRate);
 
@@ -40,9 +40,33 @@ void EqEngine::reset()
     linConv.reset();
 }
 
+void EqEngine::snapSmoothers()
+{
+    inGain.setCurrentAndTargetValue (inGain.getTargetValue());
+    outGain.setCurrentAndTargetValue (outGain.getTargetValue());
+    mixSmooth.setCurrentAndTargetValue (mixSmooth.getTargetValue());
+}
+
+// Does anything that shapes the EQ curve differ? (Decides whether the
+// linear-phase FIR must be redesigned.)
+static bool sameCurve (const EngineParams& a, const EngineParams& b)
+{
+    if (! juce::exactlyEqual (a.gainScale, b.gainScale) || a.anySolo != b.anySolo) return false;
+    for (size_t i = 0; i < a.bands.size(); ++i)
+    {
+        const auto& x = a.bands[i]; const auto& y = b.bands[i];
+        if (x.on != y.on || x.solo != y.solo) return false;
+        if (! x.on) continue;
+        if (x.type != y.type || ! juce::exactlyEqual (x.freq, y.freq) || ! juce::exactlyEqual (x.gainDb, y.gainDb) || ! juce::exactlyEqual (x.q, y.q)
+            || x.order != y.order || x.chan != y.chan) return false;
+    }
+    return true;
+}
+
 void EqEngine::setParameters (const EngineParams& p)
 {
     const bool osChanged = (p.osFactor != currentOsFactor);
+    if (! sameCurve (p, params) || p.phase != params.phase) linearDirty = true;
     params = p;
 
     // Oversampling changes the rate the filters actually run at, so rebuild the
@@ -77,16 +101,34 @@ void EqEngine::setParameters (const EngineParams& p)
     outGain.setTargetValue (juce::Decibels::decibelsToGain (p.outGainDb));
     mixSmooth.setTargetValue (p.mix);
 
-    linearDirty = true;
-
     // Latency bookkeeping.
     int lat = 0;
     if (p.phase == PhaseMode::Linear) lat = 2048;              // firLen/2
-    else if (p.osFactor > 0 && osMainProc) lat = (int) osMainProc->getLatencyInSamples();
+    else if (p.osFactor > 0 && osMainProc) lat = juce::roundToInt (osMainProc->getLatencyInSamples());
     latency = lat;
 }
 
 void EqEngine::process (juce::AudioBuffer<float>& main, const juce::AudioBuffer<float>& side)
+{
+    // Hosts may hand over more samples than they announced in prepare(). All
+    // scratch buffers are sized for maxBlock, so feed larger blocks in pieces.
+    const int total = main.getNumSamples();
+    const bool haveSide = side.getNumChannels() > 0 && side.getNumSamples() >= total;
+    for (int pos = 0; pos < total; pos += maxBlock)
+    {
+        const int n = juce::jmin (maxBlock, total - pos);
+        juce::AudioBuffer<float> m (main.getArrayOfWritePointers(), main.getNumChannels(), pos, n);
+        if (haveSide)
+        {
+            juce::AudioBuffer<float> sc (const_cast<float* const*> (side.getArrayOfReadPointers()),
+                                         side.getNumChannels(), pos, n);
+            processChunk (m, sc);
+        }
+        else processChunk (m, {});
+    }
+}
+
+void EqEngine::processChunk (juce::AudioBuffer<float>& main, const juce::AudioBuffer<float>& side)
 {
     const int n = main.getNumSamples();
     const int ch = juce::jmin (2, main.getNumChannels());
@@ -97,7 +139,6 @@ void EqEngine::process (juce::AudioBuffer<float>& main, const juce::AudioBuffer<
     float* R = ch > 1 ? main.getWritePointer (1) : L;
 
     // ---- input gain + dry capture ----
-    dryBuffer.setSize (2, n, false, false, true);
     for (int i = 0; i < n; ++i)
     {
         const float g = inGain.getNextValue();
@@ -136,44 +177,40 @@ void EqEngine::process (juce::AudioBuffer<float>& main, const juce::AudioBuffer<
     }
     else if (params.osFactor > 0 && osMainProc)
     {
-        juce::dsp::AudioBlock<float> mb (main);
+        // Only the channels that carry audio (a mono track is 1 channel; the
+        // oversampler's second channel would otherwise recirculate stale data).
+        juce::dsp::AudioBlock<float> mb (main.getArrayOfWritePointers(), (size_t) ch, (size_t) n);
         auto up = osMainProc->processSamplesUp (mb);
+        const int upN = (int) up.getNumSamples();
 
-        // Upsample sidechain to match.
-        juce::AudioBuffer<float> upSideBuf;
+        float* upPtrs[2] = { up.getChannelPointer (0), ch > 1 ? up.getChannelPointer (1) : nullptr };
+        juce::AudioBuffer<float> upMain (upPtrs, ch, upN);          // refers to, doesn't allocate
+
         if (haveSide)
         {
-            juce::AudioBuffer<float> sbuf (2, n);
-            for (int i = 0; i < n; ++i) { sbuf.setSample (0, i, side.getSample (0, i));
-                sbuf.setSample (1, i, side.getSample (juce::jmin (1, side.getNumChannels()-1), i)); }
-            juce::dsp::AudioBlock<float> sb (sbuf);
+            for (int c = 0; c < 2; ++c)
+                sideStereo.copyFrom (c, 0, side, juce::jmin (c, side.getNumChannels() - 1), 0, n);
+            juce::dsp::AudioBlock<float> sb (sideStereo.getArrayOfWritePointers(), 2, (size_t) n);
             auto sUp = osSideProc->processSamplesUp (sb);
-            upSideBuf.setSize (2, (int) sUp.getNumSamples());
-            for (int c = 0; c < 2; ++c) for (int i = 0; i < (int) sUp.getNumSamples(); ++i)
-                upSideBuf.setSample (c, i, sUp.getSample (c, i));
+            float* scPtrs[2] = { sUp.getChannelPointer (0), sUp.getChannelPointer (1) };
+            processIIR (upMain, juce::AudioBuffer<float> (scPtrs, 2, upN), workRate);
         }
-
-        juce::AudioBuffer<float> upMain (up.getNumChannels() >= 2 ? 2 : 1, (int) up.getNumSamples());
-        for (int c = 0; c < upMain.getNumChannels(); ++c)
-            juce::FloatVectorOperations::copy (upMain.getWritePointer (c), up.getChannelPointer ((size_t) c), (int) up.getNumSamples());
-
-        processIIR (upMain, upSideBuf, baseSampleRate * (1 << params.osFactor));
-
-        for (int c = 0; c < upMain.getNumChannels(); ++c)
-            juce::FloatVectorOperations::copy (up.getChannelPointer ((size_t) c), upMain.getReadPointer (c), (int) up.getNumSamples());
+        else processIIR (upMain, {}, workRate);
 
         osMainProc->processSamplesDown (mb);
     }
     else
     {
-        juce::AudioBuffer<float> sbuf;
-        if (haveSide)
-        {
-            sbuf.setSize (2, n);
-            for (int i = 0; i < n; ++i) { sbuf.setSample (0, i, side.getSample (0, i));
-                sbuf.setSample (1, i, side.getSample (juce::jmin (1, side.getNumChannels()-1), i)); }
-        }
-        processIIR (main, sbuf, baseSampleRate);
+        const juce::AudioBuffer<float> noSide;
+        processIIR (main, haveSide ? side : noSide, baseSampleRate);
+    }
+
+    // A filter that ever produced NaN/inf stays broken (it lives in the filter
+    // state). Never pass that to the host: reset and output the dry signal.
+    if (! std::isfinite (L[n - 1]) || ! std::isfinite (R[n - 1]))
+    {
+        reset();
+        for (int c = 0; c < ch; ++c) main.copyFrom (c, 0, dryBuffer, c, 0, n);
     }
 
     // ---- auto gain compensation ----

@@ -3,20 +3,19 @@
 
 namespace wsho::lic
 {
+// A stable, hashed id for this computer. It never leaves the machine: it only
+// binds the local trial / license records so they can't be copied elsewhere.
+// Computed once per process (the OS queries behind it aren't free).
 juce::String getMachineId()
 {
-    juce::String seed;
-
-    // JUCE's stable per-device id (OS-level, survives reinstalls where possible).
-    auto ids = juce::SystemStats::getDeviceIdentifiers();
-    for (auto& s : ids) seed << s << "|";
-
-    seed << juce::SystemStats::getUniqueDeviceID() << "|";
-    seed << juce::SystemStats::getOperatingSystemName() << "|";
-    // A product-specific salt so the same machine yields different ids per app
-    // (prevents cross-product license correlation / reuse).
-    seed << "whysho-eq1-salt-v1";
-
-    return juce::SHA256 (seed.toRawUTF8(), (size_t) seed.getNumBytesAsUTF8()).toHexString();
+    static const juce::String id = []
+    {
+        // Motherboard/CPU-level id; unaffected by OS upgrades, disks or network adapters.
+        juce::String seed = juce::SystemStats::getUniqueDeviceID();
+        if (seed.isEmpty()) seed = juce::SystemStats::getComputerName();   // containers / odd Linux boxes
+        seed << "|whysho-eq1-v2";
+        return juce::SHA256 (seed.toRawUTF8(), seed.getNumBytesAsUTF8()).toHexString();
+    }();
+    return id;
 }
 }

@@ -3,8 +3,7 @@
 
 namespace wsho::lic
 {
-// Stable, privacy-preserving machine fingerprint (hex SHA-256). The raw
-// hardware ids never leave the machine — only this hash is sent to the server
-// and embedded (bound) into the signed license.
+// Hashed id for this computer (hex SHA-256). Used only locally, to bind the
+// trial and license records to this machine; it is never sent anywhere.
 juce::String getMachineId();
 }

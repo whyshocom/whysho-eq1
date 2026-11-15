@@ -11,7 +11,6 @@ WhyshoEQAudioProcessor::WhyshoEQAudioProcessor()
       apvts (*this, nullptr, "WHYSHO_EQ1", createParameterLayout())
 {
     cacheParamPointers();
-    refreshLicense();
 }
 
 void WhyshoEQAudioProcessor::cacheParamPointers()
@@ -47,20 +46,19 @@ void WhyshoEQAudioProcessor::cacheParamPointers()
     pGainScale= get (pid::gainScale);
 }
 
-void WhyshoEQAudioProcessor::refreshLicense()
-{
-    licenseInfo = licMgr.refresh();
-    guard.setLicensed (licenseInfo.isUsable());
-}
-
 void WhyshoEQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     eqEngine.prepare (sampleRate, samplesPerBlock, 2);
     analyzerPre.prepare (sampleRate);
     analyzerPost.prepare (sampleRate);
     analyzerSC.prepare (sampleRate);
-    guard.prepare (sampleRate);
-    sidechainCopy.setSize (2, samplesPerBlock);
+    licenseService->markUsed();   // real use (not a plugin scan): the trial clock may start
+    sidechainCopy.setSize (2, juce::jmax (samplesPerBlock, 8192));   // hosts may exceed the announced size
+
+    // Load the real settings before reporting latency, and start at the set
+    // gains instead of fading in from silence.
+    eqEngine.setParameters (buildSnapshot());
+    eqEngine.snapSmoothers();
     setLatencySamples (eqEngine.getLatencySamples());
 }
 
@@ -122,6 +120,14 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 {
     juce::ScopedNoDenormals noDenormals;
 
+    // Trial over and no license: EQ1 is switched off. Audio passes through
+    // untouched (never silence or noise), so nobody's session gets wrecked.
+    if (! licenseService->unlocked())
+    {
+        scActive = false;
+        return;
+    }
+
     // ---- sidechain extraction ----
     scActive = false;
     sidechainCopy.clear();
@@ -133,7 +139,7 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             auto scBuf = getBusBuffer (buffer, true, 1);
             const int scCh = juce::jmin (2, scBuf.getNumChannels());
             const int n = juce::jmin (sidechainCopy.getNumSamples(), scBuf.getNumSamples());
-            if (scCh > 0 && n > 0)
+            if (scCh > 0 && n > 0 && n == scBuf.getNumSamples())
             {
                 for (int c = 0; c < 2; ++c)
                     sidechainCopy.copyFrom (c, 0, scBuf, juce::jmin (c, scCh - 1), 0, n);
@@ -143,6 +149,7 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     }
 
     auto mainBuf = getBusBuffer (buffer, false, 0);
+    if (mainBuf.getNumChannels() == 0 || mainBuf.getNumSamples() == 0) return;
 
     // ---- analyzer: pre tap ----
     const int analyzerSrc = (int) pAnalyzer->load();
@@ -150,23 +157,22 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         for (int i = 0; i < mainBuf.getNumSamples(); ++i)
             analyzerPre.push (0.5f * (mainBuf.getSample (0, i) + mainBuf.getSample (juce::jmin (1, mainBuf.getNumChannels()-1), i)));
     if (analyzerSrc == 4 && scActive)
-        analyzerSC.pushBlock (sidechainCopy.getReadPointer (0), mainBuf.getNumSamples());
+        analyzerSC.pushBlock (sidechainCopy.getReadPointer (0), juce::jmin (mainBuf.getNumSamples(), sidechainCopy.getNumSamples()));
 
     // ---- DSP ----
     eqEngine.setParameters (buildSnapshot());
     setLatencySamples (eqEngine.getLatencySamples());
-    eqEngine.process (mainBuf, scActive ? sidechainCopy : juce::AudioBuffer<float>());
-
-    // ---- licensing gate (deterrent degradation when unlicensed) ----
-    guard.applyDegradation (mainBuf);
+    if (scActive)
+    {
+        juce::AudioBuffer<float> sc (sidechainCopy.getArrayOfWritePointers(), 2, mainBuf.getNumSamples());
+        eqEngine.process (mainBuf, sc);
+    }
+    else eqEngine.process (mainBuf, {});
 
     // ---- analyzer: post tap ----
     if (analyzerSrc == 2 || analyzerSrc == 3)
         for (int i = 0; i < mainBuf.getNumSamples(); ++i)
             analyzerPost.push (0.5f * (mainBuf.getSample (0, i) + mainBuf.getSample (juce::jmin (1, mainBuf.getNumChannels()-1), i)));
-
-    // periodic re-check of license state (cheap, every ~500 blocks)
-    if (++blockCounter >= 500) { blockCounter = 0; guard.setLicensed (licenseInfo.isUsable()); }
 }
 
 void WhyshoEQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

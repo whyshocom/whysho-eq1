@@ -3,9 +3,7 @@
 #include "Parameters.h"
 #include "dsp/EqEngine.h"
 #include "dsp/SpectrumAnalyzer.h"
-#include "licensing/License.h"
-#include "licensing/Activation.h"
-#include "licensing/AntiTamper.h"
+#include "licensing/LicenseService.h"
 #include "PresetManager.h"
 
 namespace wsho
@@ -30,6 +28,7 @@ public:
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
+    juce::AudioProcessorParameter* getBypassParameter() const override { return apvts.getParameter (pid::bypass); }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -47,11 +46,8 @@ public:
     dsp::SpectrumAnalyzer& postAnalyzer() { return analyzerPost; }
     dsp::SpectrumAnalyzer& scAnalyzer()   { return analyzerSC; }
 
-    lic::LicenseManager& licenseManager() { return licMgr; }
-    lic::ActivationClient& activationClient() { return activation; }
+    lic::LicenseService& license() { return *licenseService; }
     PresetManager& presetManager() { return presets; }
-    void refreshLicense();
-    lic::LicenseInfo licenseInfo;
 
     bool sidechainActive() const { return scActive; }
 
@@ -64,9 +60,8 @@ private:
     dsp::EqEngine eqEngine;
     dsp::SpectrumAnalyzer analyzerPre, analyzerPost, analyzerSC;
 
-    lic::LicenseManager   licMgr;
-    lic::ActivationClient activation;
-    lic::Guard            guard;
+    // Shared by every EQ1 instance in the process.
+    juce::SharedResourcePointer<lic::LicenseService> licenseService;
 
     // cached raw parameter atomics
     struct BandPtrs {
@@ -79,7 +74,6 @@ private:
 
     juce::AudioBuffer<float> sidechainCopy;
     bool scActive = false;
-    int  blockCounter = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WhyshoEQAudioProcessor)
 };

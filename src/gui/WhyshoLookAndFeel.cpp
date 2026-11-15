@@ -7,21 +7,54 @@ WhyshoLookAndFeel::WhyshoLookAndFeel() { applyTheme(); }
 void WhyshoLookAndFeel::applyTheme()
 {
     const auto& t = theme();
+
+    // Rebuild every JUCE default from the theme first. Without this, any colour
+    // we don't name below falls back to JUCE's dark scheme (white text), which
+    // is unreadable on the light Paper theme.
+    setColourScheme ({ t.bg, t.panel2, t.panel2, t.grid, t.text, t.accent,
+                       onColour (t.accent), t.accent, t.text });
+
     setColour (juce::ResizableWindow::backgroundColourId, t.bg);
+    setColour (juce::Label::textColourId, t.text);
+
+    setColour (juce::TextButton::buttonColourId, t.panel2);
+    setColour (juce::TextButton::buttonOnColourId, t.accent);
+    setColour (juce::TextButton::textColourOffId, t.text);
+    setColour (juce::TextButton::textColourOnId, onColour (t.accent));
+
     setColour (juce::Slider::textBoxTextColourId, t.text);
     setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    setColour (juce::Slider::textBoxHighlightColourId, t.accent.withAlpha (0.3f));
+
     setColour (juce::ComboBox::backgroundColourId, t.panel2);
     setColour (juce::ComboBox::textColourId, t.text);
     setColour (juce::ComboBox::outlineColourId, t.grid);
+    setColour (juce::ComboBox::arrowColourId, t.text);
+
     setColour (juce::PopupMenu::backgroundColourId, t.panel2);
     setColour (juce::PopupMenu::textColourId, t.text);
+    setColour (juce::PopupMenu::headerTextColourId, t.textDim);
     setColour (juce::PopupMenu::highlightedBackgroundColourId, t.accent.withAlpha (0.25f));
-    setColour (juce::Label::textColourId, t.text);
+    setColour (juce::PopupMenu::highlightedTextColourId, t.text);
+
     setColour (juce::TextEditor::backgroundColourId, t.panel2);
     setColour (juce::TextEditor::textColourId, t.text);
     setColour (juce::TextEditor::outlineColourId, t.grid);
     setColour (juce::TextEditor::highlightColourId, t.accent.withAlpha (0.3f));
+    setColour (juce::TextEditor::highlightedTextColourId, t.text);
     setColour (juce::TextEditor::focusedOutlineColourId, t.accent);
+    setColour (juce::CaretComponent::caretColourId, t.text);
+
+    setColour (juce::AlertWindow::backgroundColourId, t.panel);
+    setColour (juce::AlertWindow::textColourId, t.text);
+    setColour (juce::AlertWindow::outlineColourId, t.grid);
+
+    setColour (juce::TooltipWindow::backgroundColourId, t.text);
+    setColour (juce::TooltipWindow::textColourId, t.bg);
+    setColour (juce::TooltipWindow::outlineColourId, juce::Colours::transparentBlack);
+
+    setColour (juce::ScrollBar::thumbColourId, t.textDim);
 }
 
 juce::Font WhyshoLookAndFeel::getLabelFont (juce::Label& l) { return l.getFont(); }

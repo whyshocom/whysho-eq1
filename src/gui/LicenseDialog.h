@@ -4,9 +4,11 @@
 
 namespace wsho::gui
 {
-// Modal-style activation panel. Online activation runs on a background thread
-// so the UI never freezes; result is posted back to the message thread.
-class LicenseDialog : public juce::Component
+// Account panel shown over the editor: trial state, "Sign in with browser",
+// buy / check again / sign out. It only observes lic::LicenseService (which
+// owns all network work), so it can be closed or destroyed at any moment.
+class LicenseDialog : public juce::Component,
+                      private juce::ChangeListener
 {
 public:
     explicit LicenseDialog (WhyshoEQAudioProcessor& p);
@@ -16,19 +18,22 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
-    void refreshStatus();
+    void lookAndFeelChanged() override;
+    bool keyPressed (const juce::KeyPress&) override;
 
 private:
-    void doActivate();
-    void setBusy (bool b);
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void refresh();
+    juce::Rectangle<int> panelBounds() const;
 
-    WhyshoEQAudioProcessor& proc;
-    juce::Label  title, status, hint;
-    juce::TextEditor keyField;
-    juce::TextButton activateBtn { "Activate" }, trialBtn { "Start 14-day Trial" },
-                     deactivateBtn { "Deactivate" }, buyBtn { "Buy / Manage" }, closeBtn { "Close" };
-    std::unique_ptr<std::thread> worker;
-    std::atomic<bool> busy { false };
+    lic::LicenseService& license;
+    lic::Status shown;
+
+    juce::Label title, headline, body, code, note;
+    juce::TextButton signInBtn { "Sign in with browser" }, buyBtn { "Buy EQ1" },
+                     checkBtn { "Check again" }, signOutBtn { "Sign out" },
+                     reopenBtn { "Open browser again" }, cancelBtn { "Cancel" },
+                     closeBtn { "Close" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LicenseDialog)
 };

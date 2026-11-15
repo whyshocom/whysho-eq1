@@ -9,7 +9,7 @@
 namespace wsho
 {
 class WhyshoEQAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                     private juce::Timer
+                                     private juce::ChangeListener
 {
 public:
     explicit WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcessor&);
@@ -20,7 +20,8 @@ public:
     void lookAndFeelChanged() override;
 
 private:
-    void timerCallback() override;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void updateLicenseUi();
     void openLicense();
 
     using SA = juce::AudioProcessorValueTreeState::SliderAttachment;

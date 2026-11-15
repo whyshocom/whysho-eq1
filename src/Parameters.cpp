@@ -46,7 +46,7 @@ APVTS::ParameterLayout createParameterLayout()
         const auto d = defaultBand (i);
         const juce::String n = "Band " + juce::String (i + 1) + " ";
 
-        layout.add (std::make_unique<BP> (juce::ParameterID { pid::band (i, pid::on), 1 },   n + "On", i < 1));
+        layout.add (std::make_unique<BP> (juce::ParameterID { pid::band (i, pid::on), 1 },   n + "On", false));
         layout.add (std::make_unique<CP> (juce::ParameterID { pid::band (i, pid::type), 1 }, n + "Type", kFilterTypeNames, (int) d.type));
         layout.add (std::make_unique<FP> (juce::ParameterID { pid::band (i, pid::freq), 1 }, n + "Freq", freqRange(), d.freq,
                      juce::AudioParameterFloatAttributes().withLabel ("Hz")));

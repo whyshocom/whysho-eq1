@@ -10,6 +10,9 @@
 namespace wsho::dsp { namespace detail {
     inline double wmax (double a, double b) { return a > b ? a : b; }
     inline double wclamp (double lo, double hi, double v) { return std::min (std::max (v, lo), hi); }
+    // Angular frequency, kept below Nyquist: above it the RBJ forms go unstable
+    // (a 20 kHz band in a 32 kHz session must not blow up).
+    inline double w0For (double fs, double f) { return 2.0 * M_PI * wclamp (10.0, fs * 0.49, f) / fs; }
 } }
 
 // ===========================================================================
@@ -47,7 +50,7 @@ static constexpr int kMaxSections = 8;
 inline BiquadCoeffs makeBell (double fs, double f, double gainDb, double Q)
 {
     const double A  = std::pow (10.0, gainDb / 40.0);
-    const double w0 = 2.0 * M_PI * f / fs;
+    const double w0 = wsho::dsp::detail::w0For (fs, f);
     const double cw = std::cos (w0), sw = std::sin (w0);
     const double alpha = sw / (2.0 * wsho::dsp::detail::wmax (Q, 0.025));
     const double a0 = 1.0 + alpha / A;
@@ -63,9 +66,11 @@ inline BiquadCoeffs makeBell (double fs, double f, double gainDb, double Q)
 inline BiquadCoeffs makeShelf (double fs, double f, double gainDb, double Q, bool high)
 {
     const double A  = std::pow (10.0, gainDb / 40.0);
-    const double w0 = 2.0 * M_PI * f / fs;
+    const double w0 = wsho::dsp::detail::w0For (fs, f);
     const double cw = std::cos (w0), sw = std::sin (w0);
-    const double alpha = sw / 2.0 * std::sqrt ((A + 1.0 / A) * (1.0 / wsho::dsp::detail::wmax (Q, 0.1) - 1.0) + 2.0);
+    // Q form (not the shelf-slope form: fed a Q above 1 its square root goes
+    // negative and the filter turns into NaN). Q = 0.707 is the classic shelf.
+    const double alpha = sw / (2.0 * wsho::dsp::detail::wmax (Q, 0.1));
     const double tsa = 2.0 * std::sqrt (A) * alpha;
     BiquadCoeffs c; double a0;
     if (high)
@@ -91,7 +96,7 @@ inline BiquadCoeffs makeShelf (double fs, double f, double gainDb, double Q, boo
 
 inline BiquadCoeffs makeNotch (double fs, double f, double Q)
 {
-    const double w0 = 2.0 * M_PI * f / fs;
+    const double w0 = wsho::dsp::detail::w0For (fs, f);
     const double cw = std::cos (w0), sw = std::sin (w0);
     const double alpha = sw / (2.0 * wsho::dsp::detail::wmax (Q, 0.1));
     const double a0 = 1.0 + alpha;
@@ -103,7 +108,7 @@ inline BiquadCoeffs makeNotch (double fs, double f, double Q)
 
 inline BiquadCoeffs makeBandPass (double fs, double f, double Q)
 {
-    const double w0 = 2.0 * M_PI * f / fs;
+    const double w0 = wsho::dsp::detail::w0For (fs, f);
     const double cw = std::cos (w0), sw = std::sin (w0);
     const double alpha = sw / (2.0 * wsho::dsp::detail::wmax (Q, 0.1));
     const double a0 = 1.0 + alpha;
@@ -115,7 +120,7 @@ inline BiquadCoeffs makeBandPass (double fs, double f, double Q)
 
 inline BiquadCoeffs makeAllPass (double fs, double f, double Q)
 {
-    const double w0 = 2.0 * M_PI * f / fs;
+    const double w0 = wsho::dsp::detail::w0For (fs, f);
     const double cw = std::cos (w0), sw = std::sin (w0);
     const double alpha = sw / (2.0 * wsho::dsp::detail::wmax (Q, 0.1));
     const double a0 = 1.0 + alpha;
