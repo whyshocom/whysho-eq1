@@ -9,6 +9,10 @@
 #include <iostream>
 #include <map>
 
+extern "C" {
+#include "monocypher-ed25519.h"
+}
+
 using namespace wsho::lic;
 using Kind = Verdict::Kind;
 
@@ -26,6 +30,35 @@ struct FakeAnchors
         for (int i = 0; i < n; ++i)
             a.push_back ({ [this, i] { return slots[i]; }, [this, i] (const juce::String& s) { slots[i] = s; } });
         return a;
+    }
+};
+
+// A stand-in for whysho.com: signs license answers with a throwaway test key.
+struct TestSite
+{
+    uint8_t secret[64] {};
+    PublicKey pub {};
+
+    explicit TestSite (uint8_t fill)
+    {
+        uint8_t seed[32];
+        std::fill (std::begin (seed), std::end (seed), fill);
+        crypto_ed25519_key_pair (secret, pub.data(), seed);
+    }
+
+    juce::String sign (const juce::String& payload) const
+    {
+        uint8_t sig[64];
+        crypto_ed25519_sign (sig, secret, (const uint8_t*) payload.toRawUTF8(), payload.getNumBytesAsUTF8());
+        return base64UrlEncode (payload.toRawUTF8(), payload.getNumBytesAsUTF8()) + "." + base64UrlEncode (sig, 64);
+    }
+
+    juce::String license (bool owned, const juce::String& machine, juce::int64 issuedAt,
+                          const juce::String& nonce = "nonce-0123456789abcdef", const juce::String& product = "eq1") const
+    {
+        return sign ("{\"v\":1,\"product\":\"" + product + "\",\"owned\":" + (owned ? "true" : "false")
+                     + ",\"email\":\"a@b.c\",\"machine\":\"" + machine + "\",\"nonce\":\"" + nonce
+                     + "\",\"issuedAt\":" + juce::String (issuedAt) + ",\"expiresAt\":" + juce::String (issuedAt + 30 * kDay) + "}");
     }
 };
 
@@ -49,16 +82,68 @@ static void testVerdicts()
     Trial seen { t0, t0 + 20 * kDay };
     CHECK (evaluate (none, seen, t0 + 2 * kDay).kind == Kind::expired);
 
-    // Owner: unlocked regardless of the trial, for 30 days without the server.
-    Account owner { "tok", "a@b.c", true, t0 + 20 * kDay };
+    // Owner: unlocked regardless of the trial, until the site's answer expires.
+    Account owner;
+    owner.token = "tok"; owner.owned = true; owner.checkedAt = t0 + 20 * kDay; owner.validUntil = t0 + 50 * kDay;
     CHECK (evaluate (owner, seen, t0 + 21 * kDay).kind == Kind::licensed);
     CHECK (evaluate (owner, seen, t0 + 49 * kDay).kind == Kind::licensed);
-    CHECK (evaluate (owner, seen, t0 + 51 * kDay).kind == Kind::expired);    // grace over, trial long gone
+    CHECK (evaluate (owner, seen, t0 + 51 * kDay).kind == Kind::expired);    // answer expired, trial long gone
+
+    // The server ended the session: the owner keeps 7 days, not the full 30.
+    Account signedOut = owner;
+    signedOut.token.clear(); signedOut.signedOutAt = t0 + 22 * kDay;
+    CHECK (evaluate (signedOut, seen, t0 + 28 * kDay).kind == Kind::licensed);
+    CHECK (evaluate (signedOut, seen, t0 + 30 * kDay).kind == Kind::expired);
 
     // Signed in but the account doesn't own it: back to the trial rules.
-    Account notOwner { "tok", "a@b.c", false, t0 };
+    Account notOwner;
+    notOwner.token = "tok"; notOwner.checkedAt = t0; notOwner.validUntil = t0 + 30 * kDay;
     CHECK (evaluate (notOwner, tr, t0 + kDay).kind == Kind::trial);
     CHECK (evaluate (notOwner, tr, t0 + 15 * kDay).kind == Kind::expired);
+}
+
+static void testSignedLicense()
+{
+    const TestSite site (7), impostor (9);
+    const juce::int64 t0 = 1'800'000'000;
+    const juce::String machine = "machine-A-0123456789";
+
+    // A genuine answer for this machine.
+    const auto good = site.license (true, machine, t0);
+    auto lic = verifyLicenseToken (good, machine, site.pub);
+    CHECK (lic.valid && lic.owned && lic.email == "a@b.c" && lic.issuedAt == t0 && lic.expiresAt == t0 + 30 * kDay);
+    CHECK (verifyLicenseToken (site.license (false, machine, t0), machine, site.pub).valid);
+    CHECK (! verifyLicenseToken (site.license (false, machine, t0), machine, site.pub).owned);
+
+    // A fake server (any other key) can't produce one.
+    CHECK (! verifyLicenseToken (impostor.license (true, machine, t0), machine, site.pub).valid);
+
+    // Flipping "owned" in a genuine "not owned" answer breaks the signature.
+    const auto notOwned = site.license (false, machine, t0);
+    const auto payload = base64UrlDecode (notOwned.upToFirstOccurrenceOf (".", false, false)).toString().replace ("false", "true");
+    const auto forged = base64UrlEncode (payload.toRawUTF8(), payload.getNumBytesAsUTF8()) + notOwned.fromFirstOccurrenceOf (".", true, false);
+    CHECK (! verifyLicenseToken (forged, machine, site.pub).valid);
+
+    // Someone else's genuine answer (another computer, another product) is refused too.
+    CHECK (! verifyLicenseToken (good, "machine-B-0123456789", site.pub).valid);
+    CHECK (! verifyLicenseToken (site.license (true, machine, t0, "n", "sy1"), machine, site.pub).valid);
+
+    // The fixed vector from the website's own tests (lib/license-token.test.ts in the
+    // whysho.com repo): proves the site's Node signer and this verifier agree.
+    {
+        const PublicKey sitePub = { 0x59,0x6d,0x86,0xb3,0x28,0xfb,0x6d,0xf9,0xfd,0xf0,0x67,0xec,0x96,0xe9,0x19,0xba,
+                                    0x24,0xda,0x10,0xac,0x43,0xcf,0x3e,0x34,0xbd,0x45,0xec,0x38,0x82,0xd5,0xa6,0x4e };
+        const auto v = verifyLicenseToken (
+            "eyJ2IjoxLCJwcm9kdWN0IjoiZXExIiwib3duZWQiOnRydWUsImVtYWlsIjoiYUBiLmMiLCJtYWNoaW5lIjoiYldGamFHbHVaUzFwWkMxb1lYTm9MVEF3TURFIiwi"
+            "bm9uY2UiOiJibTl1WTJVdE1EQXdNUzFoWW1Oa1pXWSIsImlzc3VlZEF0IjoxODAwMDAwMDAwLCJleHBpcmVzQXQiOjE4MDI1OTIwMDB9"
+            ".0ltq82hhI7lFHfabe8YIh2yDV5J-zKvhX6rLpjpRukQt3-VBbVL5eP_gbCeBKBQHcXSfmPNEVZoos0n0wYclBQ",
+            "bWFjaGluZS1pZC1oYXNoLTAwMDE", sitePub);
+        CHECK (v.valid && v.owned && v.nonce == "bm9uY2UtMDAwMS1hYmNkZWY" && v.issuedAt == 1800000000 && v.expiresAt == 1802592000);
+    }
+
+    // Garbage in, nothing out.
+    for (auto* junk : { "", ".", "abc", "abc.def", "e30.AAAA" })
+        CHECK (! verifyLicenseToken (junk, machine, site.pub).valid);
 }
 
 static void testStore()
@@ -67,22 +152,33 @@ static void testStore()
     dir.createDirectory();
     const auto file = dir.getChildFile ("account.json");
     const juce::int64 t0 = 1'800'000'000;
+    const TestSite site (7);
 
     {   // account round trip
         FakeAnchors fa;
-        LicenseStore store (file, fa.make (2), "machine-A");
+        LicenseStore store (file, fa.make (2), "machine-A", site.pub);
         CHECK (! store.loadAccount().signedIn());
-        store.saveAccount ({ "tok", "a@b.c", true, t0 });
-        const auto a = store.loadAccount();
-        CHECK (a.token == "tok" && a.email == "a@b.c" && a.owned && a.checkedAt == t0);
+
+        Account a;
+        a.token = "tok";
+        CHECK (store.acceptLicense (a, site.license (true, "machine-A", t0, "fresh-nonce"), "fresh-nonce"));
+        CHECK (! store.acceptLicense (a, site.license (true, "machine-A", t0, "old-nonce"), "fresh-nonce"));   // a replayed answer
+        store.saveAccount (a);
+
+        const auto b = store.loadAccount();
+        CHECK (b.token == "tok" && b.email == "a@b.c" && b.owned && b.checkedAt == t0 && b.validUntil == t0 + 30 * kDay);
 
         // Copied to another computer: still signed in, but must re-check online.
-        LicenseStore other (file, fa.make (2), "machine-B");
+        LicenseStore other (file, fa.make (2), "machine-B", site.pub);
         CHECK (other.loadAccount().signedIn() && ! other.loadAccount().owned);
 
-        // Hand-edited "owned": false -> true with a stale mac is ignored.
-        store.saveAccount ({ "tok", "a@b.c", false, t0 });
-        file.replaceWithText (file.loadFileAsString().replace ("\"owned\": false", "\"owned\": true"));
+        // Hand-editing the file can't grant ownership: there is no "owned" to edit,
+        // only the signed answer.
+        Account c;
+        c.token = "tok";
+        store.acceptLicense (c, site.license (false, "machine-A", t0));
+        store.saveAccount (c);
+        file.replaceWithText (file.loadFileAsString().replace ("\"token\"", "\"owned\": true, \"token\""));
         CHECK (! store.loadAccount().owned);
 
         store.clearAccount();
@@ -90,7 +186,7 @@ static void testStore()
     }
     {   // trial anchors
         FakeAnchors fa;
-        LicenseStore store (file, fa.make (3), "machine-A");
+        LicenseStore store (file, fa.make (3), "machine-A", site.pub);
         CHECK (! store.loadTrial().started());
 
         store.saveTrial ({ t0, t0 + 100 });
@@ -110,8 +206,8 @@ static void testStore()
 
         // A record from another machine is not accepted either.
         FakeAnchors fb;
-        LicenseStore (file, fb.make (1), "machine-B").saveTrial ({ t0 + 5 * kDay, t0 + 5 * kDay });
-        LicenseStore mine (file, fb.make (1), "machine-A");
+        LicenseStore (file, fb.make (1), "machine-B", site.pub).saveTrial ({ t0 + 5 * kDay, t0 + 5 * kDay });
+        LicenseStore mine (file, fb.make (1), "machine-A", site.pub);
         CHECK (evaluate ({}, mine.loadTrial(), t0).kind == Kind::expired);
     }
     dir.deleteRecursively();
@@ -122,7 +218,7 @@ static void testLive()
     AccountClient client;
     std::cout << "live: " << AccountClient::productPageUrl() << "\n";
 
-    CHECK (client.checkLicense ("not-a-real-token").state == AccountClient::Ownership::invalidToken);
+    CHECK (client.checkLicense ("not-a-real-token", "0123456789abcdef0123456789abcdef", "0123456789abcdef").state == AccountClient::Answer::invalidToken);
 
     const auto start = client.startLogin ("whysho EQ1 self-test");
     CHECK (start.ok);
@@ -136,6 +232,7 @@ int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI init;
     testVerdicts();
+    testSignedLicense();
     testStore();
     runDspTests();
     if (argc > 1 && juce::String (argv[1]) == "--live") testLive();

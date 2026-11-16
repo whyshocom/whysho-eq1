@@ -31,8 +31,10 @@ before any public commercial release.
 
    (c) Online check. To sign in and to confirm the purchase, the
        Software contacts whysho.com and sends the account's session
-       token and a device name (for example the computer's name) that
-       is shown to You when You approve the sign-in. It re-checks from
+       token, a device name (for example the computer's name) that is
+       shown to You when You approve the sign-in, and an anonymous
+       hashed identifier of the computer, used only to tie the
+       confirmation to that computer. It re-checks from
        time to time; after about thirty (30) days without reaching
        whysho.com, an internet connection is needed again to keep the
        Software unlocked.

@@ -42,6 +42,7 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 **Licensing** — see [`docs/LICENSING.md`](docs/LICENSING.md)
 - Account-based, like the rest of the whysho suite: sign in with the browser to a whysho.com account that owns EQ1
 - 14-day trial; after it, EQ1 switches off on that computer (audio passes through unchanged) until it is signed in
+- The site's answer is signed (Ed25519) and verified in the plugin, so it can't be faked by redirecting whysho.com
 - Works offline for 30 days between checks; one sign-in unlocks every open instance
 
 ---
@@ -49,7 +50,7 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 ## Repository layout
 
 ```
-CMakeLists.txt        Root build (fetches JUCE); the version lives here
+CMakeLists.txt        Root build (fetches JUCE + Monocypher); the version lives here
 src/                  Plugin: DSP, GUI, licensing
 tests/                Unit tests: licensing rules, DSP stress
 packaging/            Inno Setup (.exe) + macOS .pkg installer configs
@@ -102,6 +103,6 @@ spelled out in [`docs/LICENSING.md`](docs/LICENSING.md).
 - Spectrum **grab**/collision detection, per-band gain-match
 - Linear-phase IR regeneration off the audio thread (background)
 - Undo/redo, preset rename/delete
-- Signed license responses and a server-side trial (needs website changes)
+- Server-side trial and a seat limit (need website changes)
 - CLAP format, AAX (Pro Tools)
 - Inter-plugin shared sidechain bus across the whysho suite

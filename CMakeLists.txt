@@ -38,6 +38,23 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(juce)
 
+# ---- Monocypher (Ed25519: verifies whysho.com's signed license answers) ----
+FetchContent_Declare(
+    monocypher
+    GIT_REPOSITORY https://github.com/LoupVaillant/Monocypher.git
+    GIT_TAG        0d85f98c9d9b0227e42cf795cb527dff372b40a4   # 4.0.2
+)
+FetchContent_GetProperties(monocypher)
+if(NOT monocypher_POPULATED)
+    FetchContent_Populate(monocypher)   # sources only; it has no CMake build of its own
+endif()
+add_library(monocypher STATIC
+    ${monocypher_SOURCE_DIR}/src/monocypher.c
+    ${monocypher_SOURCE_DIR}/src/optional/monocypher-ed25519.c)
+target_include_directories(monocypher PUBLIC
+    ${monocypher_SOURCE_DIR}/src
+    ${monocypher_SOURCE_DIR}/src/optional)
+
 # ---------------------------------------------------------------------------
 juce_add_plugin(WhyshoEQ1
     COMPANY_NAME                "whysho"
@@ -68,6 +85,7 @@ set(WHYSHO_SOURCES
     src/dsp/EqEngine.cpp
     src/dsp/SpectrumAnalyzer.cpp
     src/licensing/AccountClient.cpp
+    src/licensing/LicenseToken.cpp
     src/licensing/LicenseStore.cpp
     src/licensing/LicenseService.cpp
     src/licensing/MachineId.cpp
@@ -89,6 +107,7 @@ target_compile_definitions(WhyshoEQ1 PUBLIC
 target_include_directories(WhyshoEQ1 PRIVATE src)
 
 target_link_libraries(WhyshoEQ1 PRIVATE
+    monocypher
     juce::juce_audio_utils
     juce::juce_audio_processors
     juce::juce_dsp
@@ -114,6 +133,7 @@ if(WHYSHO_BUILD_SNAPSHOT)
         JUCE_STANDALONE_APPLICATION=1 JUCE_DISPLAY_SPLASH_SCREEN=0
         JUCE_CHECK_MEMORY_LEAKS=0 NDEBUG=1)
     target_link_libraries(WhyshoEQ1_Snapshot PRIVATE
+        monocypher
         juce::juce_audio_utils juce::juce_audio_processors juce::juce_dsp
         juce::juce_gui_basics juce::juce_cryptography
         PUBLIC juce::juce_recommended_config_flags)
@@ -131,11 +151,13 @@ if(WHYSHO_BUILD_TESTS)
         tests/DspTests.cpp
         src/dsp/EqEngine.cpp
         src/licensing/AccountClient.cpp
+        src/licensing/LicenseToken.cpp
         src/licensing/LicenseStore.cpp
         src/licensing/MachineId.cpp)
     target_include_directories(WhyshoEQ1_Tests PRIVATE src)
     target_compile_definitions(WhyshoEQ1_Tests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=1)
     target_link_libraries(WhyshoEQ1_Tests PRIVATE
+        monocypher
         juce::juce_core juce::juce_events juce::juce_cryptography
         juce::juce_audio_processors juce::juce_dsp
         juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

@@ -252,9 +252,11 @@ void LicenseService::doCheck (bool userAsked)
     if (token.isEmpty()) { setActivity (Status::Activity::idle); return; }
     if (userAsked) setActivity (Status::Activity::contacting);
 
-    const auto answer = client.checkLicense (token);
+    const juce::String nonce = juce::Uuid().toString();     // 32 random hex chars, fresh per check
+    const auto answer = client.checkLicense (token, store.machineId(), nonce);
     if (threadShouldExit()) return;
 
+    const juce::String unreachable = "Couldn't reach whysho.com. Check your internet connection and try again.";
     juce::String note;
     bool noteIsError = false, haveNote = userAsked, stale = false;
     {
@@ -262,47 +264,55 @@ void LicenseService::doCheck (bool userAsked)
         stale = account.token != token;                     // signed out meanwhile
         if (! stale)
         {
-        // Stamp answers on the same forward-only clock evaluate() uses; otherwise a
-        // clock that was once wrong could leave a real owner looking expired.
-        const auto now = juce::jmax (nowSeconds(), trial.lastSeen);
+            switch (answer.state)
+            {
+                case AccountClient::Answer::answered:
+                    if (store.acceptLicense (account, answer.license, nonce))
+                    {
+                        account.signedOutAt = 0;
+                        store.saveAccount (account);
 
-        switch (answer.state)
-        {
-            case AccountClient::Ownership::owned:
-                account.owned = true;
-                account.checkedAt = now;
-                account.email = answer.email;
-                store.saveAccount (account);
-                haveNote = true;                            // clears any earlier "couldn't reach" note
-                break;
+                        // A fresh signed answer also tells us the real time. Follow the
+                        // site's clock: it can't be turned back, and it repairs a local
+                        // clock that was once set far ahead.
+                        if (trial.start > 1)
+                        {
+                            trial.lastSeen = (trial.lastSeen > account.checkedAt + kDay) ? account.checkedAt
+                                                                                         : juce::jmax (trial.lastSeen, account.checkedAt);
+                            trial.start = juce::jmin (trial.start, trial.lastSeen);
+                            lastTrialWrite = trial.lastSeen;
+                            store.saveTrial (trial);
+                        }
 
-            case AccountClient::Ownership::notOwned:        // never bought, or refunded
-                account.owned = false;
-                account.checkedAt = now;
-                account.email = answer.email;
-                store.saveAccount (account);
-                note = account.email + " doesn't own EQ1 yet.";
-                haveNote = true;
-                break;
+                        if (! account.owned) note = account.email + " doesn't own EQ1 yet.";
+                        haveNote = true;                    // also clears an earlier "couldn't reach" note
+                        break;
+                    }
+                    [[fallthrough]];                        // signed, but not a signature we accept
 
-            case AccountClient::Ownership::invalidToken:
-                // The server ended this session (password reset, a year passed, signed
-                // out on the site). Don't cut an owner off mid-project: keep what we
-                // knew for a few more days and ask them to sign in again.
-                account.token.clear();
-                if (account.owned)
-                    account.checkedAt = juce::jmin (account.checkedAt,
-                                                    now - (kOfflineGraceDays - kSignedOutGraceDays) * kDay);
-                store.saveAccount (account);
-                note = "You've been signed out. Sign in again to keep EQ1 unlocked.";
-                noteIsError = haveNote = true;
-                break;
+                case AccountClient::Answer::unsignedAnswer:
+                    // Never trust an answer we can't verify; what we already knew stands.
+                    note = "whysho.com's answer couldn't be verified, so nothing changed. Update EQ1 or try again later.";
+                    noteIsError = true;
+                    break;
 
-            case AccountClient::Ownership::unreachable:
-                note = "Couldn't reach whysho.com. Check your internet connection and try again.";
-                noteIsError = true;
-                break;
-        }
+                case AccountClient::Answer::invalidToken:
+                    // The server ended this session (password reset, a year passed, signed
+                    // out on the site). Don't cut an owner off mid-project: they keep a
+                    // few days and are asked to sign in again.
+                    account.token.clear();
+                    if (account.owned && account.signedOutAt == 0)
+                        account.signedOutAt = juce::jmax (nowSeconds(), trial.lastSeen);
+                    store.saveAccount (account);
+                    note = "You've been signed out. Sign in again to keep EQ1 unlocked.";
+                    noteIsError = haveNote = true;
+                    break;
+
+                case AccountClient::Answer::unreachable:
+                    note = unreachable;
+                    noteIsError = true;
+                    break;
+            }
         }
     }
 

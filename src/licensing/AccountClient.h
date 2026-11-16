@@ -25,10 +25,12 @@ public:
     struct PollResult { Poll state = Poll::unreachable; juce::String token, email; };
     PollResult pollLogin (const juce::String& deviceCode) const;
 
-    // GET /api/plugin/license?product=eq1
-    enum class Ownership { owned, notOwned, invalidToken, unreachable };
-    struct LicenseResult { Ownership state = Ownership::unreachable; juce::String email; };
-    LicenseResult checkLicense (const juce::String& token) const;
+    // GET /api/plugin/license?product=eq1&machine=...&nonce=...
+    // `answered` carries the site's signed answer; whether it says "owned" is only
+    // known after its signature is verified (LicenseStore::acceptLicense).
+    enum class Answer { answered, unsignedAnswer, invalidToken, unreachable };
+    struct LicenseResult { Answer state = Answer::unreachable; juce::String license; };
+    LicenseResult checkLicense (const juce::String& token, const juce::String& machine, const juce::String& nonce) const;
 
     // POST /api/plugin/logout (best effort)
     void logout (const juce::String& token) const;

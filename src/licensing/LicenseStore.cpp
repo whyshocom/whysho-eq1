@@ -1,4 +1,5 @@
 #include "LicenseStore.h"
+#include "LicensePublicKey.h"
 #include "MachineId.h"
 #include "ObfString.h"
 #include <juce_cryptography/juce_cryptography.h>
@@ -18,8 +19,13 @@ Verdict evaluate (const Account& account, const Trial& trial, juce::int64 now)
     const juce::int64 trialEnd = (trial.started() ? trial.start : now) + kTrialDays * kDay;
     v.trialDaysLeft = (int) juce::jlimit<juce::int64> (0, kTrialDays, (trialEnd - now + kDay - 1) / kDay);
 
-    const juce::int64 graceEnd = account.checkedAt + kOfflineGraceDays * kDay;
-    if (account.owned && account.checkedAt > 0 && now < graceEnd)
+    // The site's answer stands until it expires; after the server ended the
+    // session (password reset, ...) an owner gets a few days to sign in again.
+    juce::int64 graceEnd = account.validUntil;
+    if (account.signedOutAt > 0)
+        graceEnd = juce::jmin (graceEnd, account.signedOutAt + kSignedOutGraceDays * kDay);
+
+    if (account.owned && now < graceEnd)
     {
         v.kind = Verdict::Kind::licensed;
         v.offlineDaysLeft = (int) ((graceEnd - now) / kDay);
@@ -78,12 +84,13 @@ std::vector<Anchor> defaultAnchors()
 LicenseStore::LicenseStore()
     : accountFile (localDataDir().getChildFile ("account.json")),
       anchors (defaultAnchors()),
-      machine (getMachineId())
+      machine (getMachineId()),
+      publicKey (kLicensePublicKey)
 {
 }
 
-LicenseStore::LicenseStore (juce::File f, std::vector<Anchor> a, juce::String m)
-    : accountFile (std::move (f)), anchors (std::move (a)), machine (std::move (m))
+LicenseStore::LicenseStore (juce::File f, std::vector<Anchor> a, juce::String m, PublicKey k)
+    : accountFile (std::move (f)), anchors (std::move (a)), machine (std::move (m)), publicKey (k)
 {
 }
 
@@ -94,9 +101,18 @@ juce::String LicenseStore::mac (const juce::String& body) const
 }
 
 // ---- account ---------------------------------------------------------------
-static juce::String accountBody (const Account& a)
+bool LicenseStore::acceptLicense (Account& a, const juce::String& licenseToken, const juce::String& expectedNonce) const
 {
-    return a.token + "|" + a.email + "|" + (a.owned ? "1" : "0") + "|" + juce::String (a.checkedAt);
+    const auto lic = verifyLicenseToken (licenseToken, machine, publicKey);
+    if (! lic.valid) return false;
+    if (expectedNonce.isNotEmpty() && lic.nonce != expectedNonce) return false;
+
+    a.license    = licenseToken;
+    a.owned      = lic.owned;
+    a.email      = lic.email;
+    a.checkedAt  = lic.issuedAt;
+    a.validUntil = lic.expiresAt;
+    return true;
 }
 
 Account LicenseStore::loadAccount() const
@@ -105,19 +121,14 @@ Account LicenseStore::loadAccount() const
     if (! accountFile.existsAsFile()) return a;
 
     const auto json = juce::JSON::parse (accountFile.loadFileAsString());
-    a.token     = json.getProperty ("token", {}).toString();
-    a.email     = json.getProperty ("email", {}).toString();
-    a.owned     = (bool) json.getProperty ("owned", false);
-    a.checkedAt = (juce::int64) json.getProperty ("checkedAt", 0);
+    a.token       = json.getProperty ("token", {}).toString();
+    a.email       = json.getProperty ("email", {}).toString();
+    a.signedOutAt = (juce::int64) json.getProperty ("signedOutAt", 0);
 
-    // A record that doesn't verify (edited, copied from another computer, or the
-    // machine id changed) keeps the sign-in but loses the cached answer: the next
-    // online check restores it for a real owner.
-    if (json.getProperty ("mac", {}).toString() != mac (accountBody (a)))
-    {
-        a.owned = false;
-        a.checkedAt = 0;
-    }
+    // Ownership comes only from the site's signed answer. If the stored copy
+    // doesn't verify (edited, or copied from another computer) the sign-in is
+    // kept and the next online check restores a real owner.
+    acceptLicense (a, json.getProperty ("license", {}).toString());
     return a;
 }
 
@@ -126,9 +137,8 @@ void LicenseStore::saveAccount (const Account& a) const
     juce::DynamicObject::Ptr o = new juce::DynamicObject();
     o->setProperty ("token", a.token);
     o->setProperty ("email", a.email);
-    o->setProperty ("owned", a.owned);
-    o->setProperty ("checkedAt", a.checkedAt);
-    o->setProperty ("mac", mac (accountBody (a)));
+    o->setProperty ("license", a.license);
+    o->setProperty ("signedOutAt", a.signedOutAt);
 
     accountFile.getParentDirectory().createDirectory();
     accountFile.replaceWithText (juce::JSON::toString (juce::var (o.get())));

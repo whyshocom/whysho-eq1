@@ -95,20 +95,23 @@ AccountClient::PollResult AccountClient::pollLogin (const juce::String& deviceCo
     return out;
 }
 
-AccountClient::LicenseResult AccountClient::checkLicense (const juce::String& token) const
+AccountClient::LicenseResult AccountClient::checkLicense (const juce::String& token, const juce::String& machine,
+                                                         const juce::String& nonce) const
 {
     LicenseResult out;
-    const auto r = request ("/api/plugin/license?product=" + productSlug(), "GET", {}, token);
+    const auto r = request ("/api/plugin/license?product=" + productSlug()
+                              + "&machine=" + juce::URL::addEscapeChars (machine, true)
+                              + "&nonce="   + juce::URL::addEscapeChars (nonce, true),
+                            "GET", {}, token);
 
-    if (r.status == 401) { out.state = Ownership::invalidToken; return out; }
+    if (r.status == 401) { out.state = Answer::invalidToken; return out; }
 
     // Anything that isn't a clear answer (offline, 5xx, a proxy's HTML page, ...)
     // counts as "unreachable", so a network hiccup never locks out an owner.
-    const auto owned = r.body.getProperty ("owned", juce::var());
-    if (r.status == 200 && owned.isBool() && r.text ("product") == productSlug())
+    if (r.status == 200 && r.body.getProperty ("owned", juce::var()).isBool())
     {
-        out.state = (bool) owned ? Ownership::owned : Ownership::notOwned;
-        out.email = r.text ("email");
+        out.license = r.text ("token");
+        out.state = out.license.isNotEmpty() ? Answer::answered : Answer::unsignedAnswer;
     }
     return out;
 }
