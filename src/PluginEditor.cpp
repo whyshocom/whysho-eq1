@@ -443,10 +443,11 @@ void WhyshoEQAudioProcessorEditor::openLicense()
     addAndMakeVisible (*licenseDialog);
     licenseDialog->setBounds (getLocalBounds());
     licenseDialog->toFront (true);
-    licenseDialog->onClose = [this]
+    const juce::Component::SafePointer<WhyshoEQAudioProcessorEditor> safe (this);
+    licenseDialog->onClose = [safe]
     {
         // Deferred: the dialog must not be destroyed from inside its own callback.
-        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<WhyshoEQAudioProcessorEditor> (this)]
+        juce::MessageManager::callAsync ([safe]
         {
             if (safe != nullptr) { safe->licenseDialog.reset(); safe->repaint(); }
         });
