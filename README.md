@@ -14,7 +14,7 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - Variable **slopes** 6 → 96 dB/oct (Butterworth cascades) on pass filters
 - Per-band **channel mode**: Stereo · Left · Right · **Mid** · **Side**
 - Per-band **solo** (listen) and enable
-- **Dynamic EQ** on any band — band-localized detector, threshold / range / attack / release, upward *or* downward
+- **Dynamic EQ** on any band and any filter type: gain bands move by the Range; pass, notch, band-pass and all-pass filters fade in or out. Threshold / range / attack / release, upward *or* downward, shown live on the graph
 
 **Sidechain**
 - Dedicated **sidechain input bus** — route any track or plugin output into it from your DAW
@@ -23,7 +23,10 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - Works with whysho plugins *and* any host-routed source (FL Studio, Ableton, Reaper, Cubase, Logic …)
 
 **Processing & quality**
-- Phase modes: **Zero Latency** (IIR) · **Natural** · **Linear Phase** (FFT, latency-compensated)
+- Phase modes:
+  - **Zero Latency**: plain IIR at the host rate (the curve squeezes toward Nyquist, as with any digital EQ)
+  - **Natural Phase**: the analog curve and phase across the audible band, via internal oversampling with linear-phase filters (about 60 samples of latency at 48 kHz)
+  - **Linear Phase**: no phase shift at all; FIR designed in the background, per-channel, 4096 samples of latency at 48 kHz. Bands with Dynamic on run as normal filters after it, and very narrow bands below ~100 Hz come out shallower than drawn
 - **Oversampling**: off / 2× / 4× / 8× / 16×
 - **Auto-gain** compensation, global In/Out trim, dry/wet **Mix**, global EQ-gain **Scale**
 
@@ -32,7 +35,8 @@ Built on [JUCE](https://juce.com) (C++), shipping as **VST3** (Windows + macOS) 
 - Preset bar with prev/next, **Save**, and **A/B compare** + Copy
 
 **Interface**
-- Real-time **FFT spectrum analyzer** (Pre / Post / Pre+Post / Sidechain) with musical tilt
+- Real-time **spectrum analyzer** (Pre / Post / Pre+Post / Sidechain): 8192-point FFT with overlap, 1/6-octave smoothing, musical tilt
+- **Zoomable** graph (±6 / ±12 / ±30 dB), band power switch, **undo / redo**, preset rename / delete, remembered window size
 - **Draggable band nodes** on the curve — drag to set freq/gain, wheel for Q, right-click for type/channel/dynamics
 - **Themes** — switchable palettes, persisted with the project. **Paper** (the whysho editorial/paper brand look) is the default; **Midnight** and **Graphite** are dark alternatives
 - Resizable UI
@@ -101,8 +105,7 @@ spelled out in [`docs/LICENSING.md`](docs/LICENSING.md).
 ## Roadmap
 
 - Spectrum **grab**/collision detection, per-band gain-match
-- Linear-phase IR regeneration off the audio thread (background)
-- Undo/redo, preset rename/delete
+- Longer linear-phase kernels (optional, more latency) for narrow low bands
 - Server-side trial and a seat limit (need website changes)
 - CLAP format, AAX (Pro Tools)
 - Inter-plugin shared sidechain bus across the whysho suite

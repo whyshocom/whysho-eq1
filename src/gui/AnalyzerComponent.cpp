@@ -109,6 +109,16 @@ bool AnalyzerComponent::updateCurves()
 
     double sr = proc.engine().getSampleRate();
     if (sr <= 0.0) sr = 48000.0;
+
+    // Draw what is actually heard. Zero Latency filters squeeze toward Nyquist
+    // (less so when oversampled); Natural and Linear Phase follow the analog
+    // curve, which a much higher display rate reproduces across the audible band.
+    static const std::atomic<float> zero { 0.0f };
+    const auto* phaseRef = proc.state().getRawParameterValue (pid::phase);
+    const auto* osRef    = proc.state().getRawParameterValue (pid::os);
+    const int phase = (int) (phaseRef != nullptr ? phaseRef : &zero)->load();
+    const int os    = (int) (osRef    != nullptr ? osRef    : &zero)->load();
+    sr *= (phase == (int) PhaseMode::ZeroLatency) ? (double) (1 << juce::jlimit (0, 4, os)) : 16.0;
     const float scale = gainScaleRef->load();
 
     // ---- the static curve: the EQ as set ----
