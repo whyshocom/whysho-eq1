@@ -59,6 +59,22 @@ void WhyshoLookAndFeel::applyTheme()
 
 juce::Font WhyshoLookAndFeel::getLabelFont (juce::Label& l) { return l.getFont(); }
 
+// A disabled control is drawn faded: the same rule for every control and theme.
+// (Text that lives in a child Label - knob values, combo text - is faded by JUCE.)
+namespace
+{
+struct DisabledFade
+{
+    DisabledFade (juce::Graphics& gr, const juce::Component& c) : g (gr), active (! c.isEnabled())
+    {
+        if (active) g.beginTransparencyLayer (0.4f);
+    }
+    ~DisabledFade() { if (active) g.endTransparencyLayer(); }
+    juce::Graphics& g;
+    const bool active;
+};
+}
+
 void WhyshoLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
                                           float pos, float a0, float a1, juce::Slider& s)
 {
@@ -66,6 +82,7 @@ void WhyshoLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w
     const auto r = juce::jmax (8.0f, juce::jmin (b.getWidth(), b.getHeight()) * 0.5f);
     const auto c = b.getCentre();
     const float angle = a0 + pos * (a1 - a0);
+    const DisabledFade fade (g, s);
 
     g.setColour (theme().panel2);
     g.fillEllipse (c.x - r, c.y - r, r * 2, r * 2);
@@ -84,7 +101,7 @@ void WhyshoLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w
                             c.y + (r - 6) * std::sin (angle - juce::MathConstants<float>::halfPi));
     g.setColour (theme().text);
     g.drawLine ({ c, tip }, 2.0f);
-    g.setColour (theme().accent);
+    g.setColour (s.isEnabled() ? theme().accent : theme().textDim);
     g.fillEllipse (c.x - 2.5f, c.y - 2.5f, 5.0f, 5.0f);
 }
 
@@ -101,8 +118,9 @@ void WhyshoLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w
     g.fillEllipse (pos - 6, y + h * 0.5f - 6, 12, 12);
 }
 
-void WhyshoLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox&)
+void WhyshoLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box)
 {
+    const DisabledFade fade (g, box);
     auto b = juce::Rectangle<float> (0, 0, (float) w, (float) h).reduced (0.5f);
     g.setColour (theme().panel2);
     g.fillRoundedRectangle (b, 4.0f);
@@ -117,6 +135,7 @@ void WhyshoLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int
 
 void WhyshoLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bt, const juce::Colour&, bool hl, bool down)
 {
+    const DisabledFade fade (g, bt);
     auto b = bt.getLocalBounds().toFloat().reduced (0.5f);
     auto base = bt.getToggleState() ? theme().accent.withAlpha (0.9f) : theme().panel2;
     if (down) base = base.darker (0.2f); else if (hl) base = base.brighter (0.1f);
@@ -131,6 +150,7 @@ void WhyshoLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton&
     const auto& t = theme();
     const bool on = b.getToggleState();
     auto bounds = b.getLocalBounds().toFloat();
+    const DisabledFade fade (g, b);
 
     // --- pill switch ---
     const float h = juce::jmin (16.0f, bounds.getHeight());

@@ -1,5 +1,5 @@
 // Test runner. Licensing rules here (trial clock, offline grace, tamper handling);
-// DSP stress tests in DspTests.cpp.
+// DSP stress tests in DspTests.cpp; undo, presets and A/B in WorkflowTests.cpp.
 //   WhyshoEQ1_Tests          unit tests, no network
 //   WhyshoEQ1_Tests --live   also talks to the real whysho.com plugin API
 #include <juce_core/juce_core.h>
@@ -18,6 +18,7 @@ using Kind = Verdict::Kind;
 
 int failures = 0;
 void runDspTests();
+void runWorkflowTests();
 #define CHECK(cond) do { if (! (cond)) { ++failures; std::cout << "FAIL " << __LINE__ << ": " #cond "\n"; } } while (false)
 
 // In-memory anchors so tests never touch the real machine state.
@@ -235,6 +236,7 @@ int main (int argc, char** argv)
     testSignedLicense();
     testStore();
     runDspTests();
+    runWorkflowTests();
     if (argc > 1 && juce::String (argv[1]) == "--live") testLive();
     std::cout << (failures == 0 ? "all tests passed\n" : "tests FAILED\n");
     return failures == 0 ? 0 : 1;

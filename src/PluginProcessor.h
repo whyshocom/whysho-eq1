@@ -48,6 +48,7 @@ public:
 
     lic::LicenseService& license() { return *licenseService; }
     PresetManager& presetManager() { return presets; }
+    juce::UndoManager& undoManager() { return undo; }
 
     bool sidechainActive() const { return scActive; }
 
@@ -55,6 +56,7 @@ private:
     dsp::EngineParams buildSnapshot();
     void cacheParamPointers();
 
+    juce::UndoManager undo;                       // before apvts: apvts keeps a pointer to it
     juce::AudioProcessorValueTreeState apvts;
     PresetManager presets { apvts };
     dsp::EqEngine eqEngine;

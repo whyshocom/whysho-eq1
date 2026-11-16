@@ -20,13 +20,14 @@ private:
     Knob& addKnob (const juce::String& name);
     juce::ComboBox& addCombo (const juce::StringArray& items);
     juce::ToggleButton& addToggle (const juce::String& name);
+    void updateEnablement();
 
     WhyshoEQAudioProcessor& proc;
     int band = 0;
 
     juce::OwnedArray<Knob> knobs;          // freq, gain, q, dThr, dRng, dAtt, dRel
     juce::OwnedArray<juce::ComboBox> combos; // type, slope, chan
-    juce::OwnedArray<juce::ToggleButton> toggles; // solo, dyn, dynSC
+    juce::OwnedArray<juce::ToggleButton> toggles; // solo, dyn, dynSC, on
     juce::Label title;
 
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> sa;
