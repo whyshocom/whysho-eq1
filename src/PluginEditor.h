@@ -9,7 +9,8 @@
 namespace wsho
 {
 class WhyshoEQAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                     private juce::ChangeListener
+                                     private juce::ChangeListener,
+                                     private juce::Timer
 {
 public:
     explicit WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcessor&);
@@ -18,9 +19,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void lookAndFeelChanged() override;
+    bool keyPressed (const juce::KeyPress&) override;
 
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void timerCallback() override;
     void updateLicenseUi();
     void openLicense();
 
@@ -50,18 +53,40 @@ private:
 
     // preset bar
     juce::ComboBox presetBox;
-    juce::TextButton prevBtn { "<" }, nextBtn { ">" }, saveBtn { "Save" },
+    juce::TextButton prevBtn { "<" }, nextBtn { ">" }, saveBtn { "Save" }, presetMenuBtn { "..." },
+                     undoBtn { "Undo" }, redoBtn { "Redo" },
                      abBtn { "A" }, copyBtn { "Copy" };
-    bool slotB = false;
-    std::unique_ptr<juce::AlertWindow> saveDialog;
+    juce::StringArray factoryPresets, userPresets;   // as listed in presetBox
+    juce::String shownPreset;
+
+    // The one dialog (name prompt / confirmation / message) that can be open.
+    using DialogAction = std::function<void (WhyshoEQAudioProcessorEditor&, const juce::String& text)>;
+    std::unique_ptr<juce::AlertWindow> dialog;
+    void showDialog (const juce::String& title, const juce::String& message, const juce::String& okText,
+                     DialogAction onOk, bool askForName = false, const juce::String& initialName = {});
+    void showMessage (const juce::String& title, const juce::String& message);
 
     void applyTheme();
     static constexpr int kHeaderH = 78;
     void rebuildPresetMenu();
+    void refreshPresetDisplay();
+    int  presetId (const juce::String& name) const;
+    bool userPresetIsCurrent() const;
     void selectPresetDelta (int d);
     void applyPresetSelection();
-    void doSavePreset();
+    void showPresetMenu();
+    void askSavePreset();
+    void savePreset (const juce::String& typedName);
+    void askRenamePreset();
+    void renamePreset (const juce::String& from, const juce::String& typedName);
+    void askDeletePreset();
     void toggleAB();
+    void undoOrRedo (bool redo);
+
+    bool mouseWasDown = false;
+    juce::Point<int> rememberedSize;     // the window size last read from / written to the preference
+    bool userResized = false;
+    void rememberWindowSize();
 
     juce::OwnedArray<SA> sa; juce::OwnedArray<CA> ca; juce::OwnedArray<BA> ba;
 

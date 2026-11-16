@@ -21,6 +21,12 @@ BandEditor::BandEditor (WhyshoEQAudioProcessor& p) : proc (p)
     addToggle ("Solo");             // 0
     addToggle ("Dynamic");          // 1
     addToggle ("SC Key");           // 2
+    addToggle ("On").setTooltip ("Switch this band on or off");   // 3
+
+    // What is usable depends on the band's on / type / dynamic settings.
+    combos[0]->onChange = [this] { updateEnablement(); };
+    toggles[1]->onClick = [this] { updateEnablement(); };
+    toggles[3]->onClick = [this] { updateEnablement(); };
 
     setBand (0);
     lookAndFeelChanged();
@@ -28,8 +34,8 @@ BandEditor::BandEditor (WhyshoEQAudioProcessor& p) : proc (p)
 
 void BandEditor::lookAndFeelChanged()
 {
-    title.setColour (juce::Label::textColourId, theme().accent);
     title.setFont (themeFont (14.0f, true));
+    updateEnablement();   // also colours the title
     for (auto* k : knobs)
     {
         k->label.setColour (juce::Label::textColourId, theme().textDim);
@@ -94,6 +100,36 @@ void BandEditor::setBand (int index)
     ba.add (new juce::AudioProcessorValueTreeState::ButtonAttachment (s, mk (pid::solo),  *toggles[0]));
     ba.add (new juce::AudioProcessorValueTreeState::ButtonAttachment (s, mk (pid::dyn),   *toggles[1]));
     ba.add (new juce::AudioProcessorValueTreeState::ButtonAttachment (s, mk (pid::dynSC), *toggles[2]));
+    ba.add (new juce::AudioProcessorValueTreeState::ButtonAttachment (s, mk (pid::on),    *toggles[3]));
+    updateEnablement();
+}
+
+// An off band reads as off (only its power switch stays live), and controls
+// that do nothing for the current filter type / with dynamics off are disabled.
+void BandEditor::updateEnablement()
+{
+    const bool on  = toggles[3]->getToggleState();
+    const bool dyn = on && toggles[1]->getToggleState();
+    const auto type = (FilterType) combos[0]->getSelectedItemIndex();
+    const bool isCut   = type == FilterType::HighPass || type == FilterType::LowPass;
+    const bool hasGain = ! (isCut || type == FilterType::Notch || type == FilterType::BandPass
+                                  || type == FilterType::AllPass);
+
+    const bool knobOn[] = { on, on && hasGain, on, dyn, dyn, dyn, dyn };
+    for (int i = 0; i < knobs.size(); ++i)
+    {
+        knobs[i]->slider.setEnabled (knobOn[i]);
+        knobs[i]->label.setEnabled (knobOn[i]);
+    }
+    combos[0]->setEnabled (on);
+    combos[1]->setEnabled (on && isCut);    // slope
+    combos[2]->setEnabled (on);
+    toggles[0]->setEnabled (on);
+    toggles[1]->setEnabled (on);
+    toggles[2]->setEnabled (dyn);           // sc key
+
+    title.setColour (juce::Label::textColourId, on ? theme().accent : theme().textDim);
+    repaint();   // the DYNAMICS caption
 }
 
 void BandEditor::paint (juce::Graphics& g)
@@ -104,7 +140,7 @@ void BandEditor::paint (juce::Graphics& g)
     // separator between static and dynamic sections
     g.setColour (theme().grid);
     g.drawVerticalLine (getWidth() * 55 / 100, 8.0f, getHeight() - 8.0f);
-    g.setColour (theme().textDim);
+    g.setColour (theme().textDim.withMultipliedAlpha (toggles[1]->isEnabled() && toggles[1]->getToggleState() ? 1.0f : 0.5f));
     g.setFont (themeFont (10.0f, true));
     g.drawText ("DYNAMICS", getWidth() * 55 / 100 + 6, 4, 90, 12, juce::Justification::left);
 }
@@ -112,7 +148,9 @@ void BandEditor::paint (juce::Graphics& g)
 void BandEditor::resized()
 {
     auto b = getLocalBounds().reduced (10);
-    title.setBounds (b.removeFromTop (18).removeFromLeft (120));
+    auto head = b.removeFromTop (18);
+    title.setBounds (head.removeFromLeft (78));
+    toggles[3]->setBounds (head.removeFromLeft (70));   // on
 
     auto row = b;
     auto combosArea = row.removeFromLeft (row.getWidth() * 55 / 100);

@@ -8,7 +8,7 @@ WhyshoEQAudioProcessor::WhyshoEQAudioProcessor()
           .withInput  ("Input",     juce::AudioChannelSet::stereo(), true)
           .withOutput ("Output",    juce::AudioChannelSet::stereo(), true)
           .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false)),
-      apvts (*this, nullptr, "WHYSHO_EQ1", createParameterLayout())
+      apvts (*this, &undo, "WHYSHO_EQ1", createParameterLayout())
 {
     cacheParamPointers();
 }
@@ -178,7 +178,9 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
 void WhyshoEQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    if (auto xml = apvts.copyState().createXml())
+    auto tree = apvts.copyState();
+    presets.writeSessionInfo (tree);
+    if (auto xml = tree.createXml())
         copyXmlToBinary (*xml, destData);
 }
 
@@ -186,7 +188,10 @@ void WhyshoEQAudioProcessor::setStateInformation (const void* data, int sizeInBy
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        {
+            apvts.replaceState (juce::ValueTree::fromXml (*xml));   // also clears the undo history
+            presets.sessionLoaded();
+        }
 }
 
 juce::AudioProcessorEditor* WhyshoEQAudioProcessor::createEditor()

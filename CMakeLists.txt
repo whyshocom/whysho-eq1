@@ -120,7 +120,7 @@ if(WHYSHO_BUILD_SNAPSHOT)
 endif()
 
 # ---------------------------------------------------------------------------
-#  Tests (licensing rules + DSP stress). `ctest --test-dir build` after building.
+#  Tests (licensing rules, DSP stress, undo / presets / A-B). `ctest --test-dir build` after building.
 # ---------------------------------------------------------------------------
 option(WHYSHO_BUILD_TESTS "Build unit tests" ON)
 if(WHYSHO_BUILD_TESTS)
@@ -129,6 +129,9 @@ if(WHYSHO_BUILD_TESTS)
     target_sources(WhyshoEQ1_Tests PRIVATE
         tests/LicenseTests.cpp
         tests/DspTests.cpp
+        tests/WorkflowTests.cpp
+        src/Parameters.cpp
+        src/PresetManager.cpp
         src/dsp/EqEngine.cpp
         src/licensing/AccountClient.cpp
         src/licensing/LicenseStore.cpp

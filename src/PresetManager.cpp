@@ -65,14 +65,56 @@ const std::vector<PresetManager::Preset>& PresetManager::factory()
     return list;
 }
 
-PresetManager::PresetManager (juce::AudioProcessorValueTreeState& s) : apvts (s) {}
+static const juce::Identifier kPresetName ("presetName"), kPresetModified ("presetModified"), kSlotB ("abSlot");
+
+// Not part of a preset or an A/B slot.
+bool PresetManager::keptOnPresetLoad (const juce::String& id) { return id == pid::bypass || id == pid::analyzer; }
+
+PresetManager::PresetManager (juce::AudioProcessorValueTreeState& s, const juce::File& userPresetDir)
+    : apvts (s), presetDir (userPresetDir)
+{
+    if (presetDir == juce::File())
+        presetDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                        .getChildFile ("Whysho").getChildFile ("EQ1").getChildFile ("Presets");
+
+    apvts.state.setProperty (kPresetName, factory().front().name, nullptr);
+
+    for (auto* p : apvts.processor.getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+            if (! keptOnPresetLoad (rp->paramID))
+                apvts.addParameterListener (rp->paramID, this);
+}
+
+PresetManager::~PresetManager()
+{
+    for (auto* p : apvts.processor.getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+            apvts.removeParameterListener (rp->paramID, this);
+}
+
+// Any thread (the host may automate from the audio thread).
+void PresetManager::parameterChanged (const juce::String&, float)
+{
+    if (! applying.load()) modified = true;
+}
 
 juce::File PresetManager::userDir() const
 {
-    auto d = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                 .getChildFile ("Whysho").getChildFile ("EQ1").getChildFile ("Presets");
-    d.createDirectory();
-    return d;
+    presetDir.createDirectory();
+    return presetDir;
+}
+
+juce::String PresetManager::legalName (const juce::String& name)
+{
+    // No leading dots either: no hidden files, no "..".
+    return juce::File::createLegalFileName (name.trim()).trimCharactersAtStart (". ").trim();
+}
+
+// The file for a preset name: always directly inside the preset folder.
+juce::File PresetManager::presetFile (const juce::String& name) const
+{
+    const auto legal = legalName (name);
+    return legal.isEmpty() ? juce::File() : userDir().getChildFile (legal + ".wshoeq");
 }
 
 juce::StringArray PresetManager::factoryNames() const
@@ -91,66 +133,163 @@ juce::StringArray PresetManager::userNames() const
     return n;
 }
 
-void PresetManager::setParam (const juce::String& id, float value)
+bool PresetManager::isFactory (const juce::String& name) const
 {
-    if (auto* p = apvts.getParameter (id))
-        p->setValueNotifyingHost (p->convertTo0to1 (value));
+    return factoryNames().contains (legalName (name), true);
 }
 
-void PresetManager::applyValues (const V& v) { for (auto& kv : v) setParam (kv.first, kv.second); }
+bool PresetManager::userExists (const juce::String& name) const
+{
+    return presetFile (name).existsAsFile();
+}
+
+juce::String PresetManager::current() const { return apvts.state[kPresetName].toString(); }
+
+// Parameter changes reach the state tree (and with it the undo history) on a
+// timer; copyState() pushes the pending ones through now, so they land in the
+// undo step they belong to.
+void PresetManager::newUndoStep()
+{
+    apvts.copyState();
+    if (apvts.undoManager != nullptr) apvts.undoManager->beginNewTransaction();
+}
+
+PresetManager::Values PresetManager::valuesOf (const juce::ValueTree& state)
+{
+    Values v;
+    for (const auto& child : state)
+        if (child.hasProperty ("id") && child.hasProperty ("value"))
+            v[child["id"].toString()] = (float) child["value"];
+    return v;
+}
+
+// Sets every preset parameter: to its value in `v`, or to its default when `v`
+// does not mention it. The caller makes it one undo step.
+void PresetManager::apply (const Values& v, const juce::String& name, bool nowModified)
+{
+    applying = true;
+    for (auto* p : apvts.processor.getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+        {
+            if (keptOnPresetLoad (rp->paramID)) continue;
+            const auto it = v.find (rp->paramID);
+            const float target = it != v.end() && std::isfinite (it->second) ? rp->convertTo0to1 (it->second)
+                                                                             : rp->getDefaultValue();
+            if (! juce::approximatelyEqual (rp->getValue(), target))
+                rp->setValueNotifyingHost (target);
+        }
+    apvts.state.setProperty (kPresetName, name, apvts.undoManager);
+    modified = nowModified;
+    applying = false;
+}
 
 void PresetManager::initToDefault()
 {
-    for (auto* p : apvts.processor.getParameters())
-        p->setValueNotifyingHost (p->getDefaultValue());
+    newUndoStep();
+    apply ({}, factory().front().name, false);
+    newUndoStep();
 }
 
-void PresetManager::applyFactory (const juce::String& name)
+bool PresetManager::applyFactory (const juce::String& name)
 {
     for (auto& p : factory())
         if (p.name == name)
         {
-            initToDefault();
-            applyValues (p.values);
-            currentName = name;
-            return;
+            newUndoStep();
+            apply (Values (p.values.begin(), p.values.end()), name, false);
+            newUndoStep();
+            return true;
         }
+    return false;
 }
 
-void PresetManager::applyUser (const juce::String& name)
+bool PresetManager::applyUser (const juce::String& name)
 {
-    auto f = userDir().getChildFile (name + ".wshoeq");
-    if (! f.existsAsFile()) return;
+    const auto f = presetFile (name);
+    if (! f.existsAsFile()) return false;
     if (auto xml = juce::XmlDocument::parse (f))
         if (xml->hasTagName (apvts.state.getType()))
         {
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
-            currentName = name;
+            newUndoStep();
+            apply (valuesOf (juce::ValueTree::fromXml (*xml)), f.getFileNameWithoutExtension(), false);
+            newUndoStep();
+            return true;
         }
+    return false;
 }
 
 bool PresetManager::saveUser (const juce::String& name)
 {
+    const auto f = presetFile (name);
+    if (f == juce::File() || isFactory (name)) return false;
+
     auto state = apvts.copyState();
-    if (auto xml = state.createXml())
-    {
-        currentName = name;
-        return xml->writeTo (userDir().getChildFile (name + ".wshoeq"));
-    }
-    return false;
+    state.removeAllProperties (nullptr);          // the preset name etc. belong to the project
+    auto xml = state.createXml();
+    if (xml == nullptr || ! xml->writeTo (f)) return false;
+
+    apvts.state.setProperty (kPresetName, f.getFileNameWithoutExtension(), nullptr);
+    modified = false;
+    return true;
+}
+
+bool PresetManager::renameUser (const juce::String& from, const juce::String& to)
+{
+    const auto src = presetFile (from), dst = presetFile (to);
+    if (! src.existsAsFile() || dst == juce::File() || isFactory (to)) return false;
+    if (src == dst) return true;
+    const bool wasCurrent = current() == src.getFileNameWithoutExtension();
+    if (! src.moveFileTo (dst)) return false;     // replaces an existing `to`
+    if (wasCurrent) apvts.state.setProperty (kPresetName, dst.getFileNameWithoutExtension(), nullptr);
+    return true;
 }
 
 bool PresetManager::deleteUser (const juce::String& name)
 {
-    return userDir().getChildFile (name + ".wshoeq").deleteFile();
+    const auto f = presetFile (name);
+    if (! f.existsAsFile() || ! f.deleteFile()) return false;
+    if (current() == f.getFileNameWithoutExtension())
+        apvts.state.setProperty (kPresetName, juce::String(), nullptr);   // the settings stay, the name goes
+    return true;
 }
 
-void PresetManager::captureTo (bool slotB) { (slotB ? slotBState : slotAState) = apvts.copyState(); }
+// ---- A/B -------------------------------------------------------------------
+bool PresetManager::slotB() const { return (bool) apvts.state[kSlotB]; }
 
-void PresetManager::recallFrom (bool slotB)
+void PresetManager::captureTo (bool b) { slots[b ? 1 : 0] = { apvts.copyState(), modified.load() }; }
+
+void PresetManager::copyToOtherSlot() { captureTo (! slotB()); }
+
+void PresetManager::toggleSlot()
 {
-    auto& s = slotB ? slotBState : slotAState;
-    if (s.isValid()) apvts.replaceState (s.createCopy());
+    const bool to = ! slotB();
+    captureTo (! to);
+    if (! slots[to ? 1 : 0].state.isValid()) captureTo (to);   // first visit: starts as a copy
+    const auto& s = slots[to ? 1 : 0];
+
+    // The slot flag is part of the same undo step as the values: undoing an A/B
+    // switch goes back to the other slot, and nothing stored is lost.
+    newUndoStep();
+    apply (valuesOf (s.state), s.state[kPresetName].toString(), s.modified);
+    apvts.state.setProperty (kSlotB, to, apvts.undoManager);
+    newUndoStep();
+}
+
+// ---- project save / load ---------------------------------------------------
+void PresetManager::writeSessionInfo (juce::ValueTree& stateCopy) const
+{
+    stateCopy.setProperty (kPresetModified, modified.load(), nullptr);
+    stateCopy.removeProperty (kSlotB, nullptr);   // A/B slots are not saved: a project opens on A
+}
+
+void PresetManager::sessionLoaded()
+{
+    // A project saved before the name was stored has none: show none, never a wrong one.
+    modified = (bool) apvts.state[kPresetModified];
+    apvts.state.removeProperty (kPresetModified, nullptr);
+    apvts.state.removeProperty (kSlotB, nullptr);
+    slots[0] = {};
+    slots[1] = {};
 }
 
 } // namespace wsho
