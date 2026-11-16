@@ -40,8 +40,8 @@ inline const std::array<Theme, 3>& themes()
             juce::Colour (0xffC27C2B), // warn
             juce::Colour (0xffB03226), // bad (5:1 on panel)
             juce::Colour (0xff14110B), // curve (near-black)
-            juce::Colour (0x3C5B86B4), // specPre
-            juce::Colour (0x665B86B4), // specPost (blue fill)
+            juce::Colour (0xA06F6A5A), // specPre  (spectrum line; the fill under it is derived, fainter)
+            juce::Colour (0xE02E6CA8), // specPost (blue)
             { juce::Colour (0xffE4572E), juce::Colour (0xffF2932C), juce::Colour (0xff3FA34D),
               juce::Colour (0xff8E6FD6), juce::Colour (0xff3C78C8), juce::Colour (0xff2BA6A0),
               juce::Colour (0xffD7599B), juce::Colour (0xffC9A227) }
@@ -53,7 +53,7 @@ inline const std::array<Theme, 3>& themes()
             juce::Colour (0xff2A2E3A), juce::Colour (0xffE6E9F0), juce::Colour (0xff8A90A0),
             juce::Colour (0xff4CC2FF), juce::Colour (0xffB46BFF), juce::Colour (0xff57D9A3),
             juce::Colour (0xffFFB454), juce::Colour (0xffFF6B6B), juce::Colour (0xff4CC2FF),
-            juce::Colour (0x5563718A), juce::Colour (0x884CC2FF),
+            juce::Colour (0xA07C8AA5), juce::Colour (0xC04CC2FF),
             { juce::Colour (0xff4CC2FF), juce::Colour (0xff6BE3B8), juce::Colour (0xffB46BFF),
               juce::Colour (0xffFFB454), juce::Colour (0xffFF6B9D), juce::Colour (0xff7CF2E0),
               juce::Colour (0xffFFD166), juce::Colour (0xff8AA8FF) }
@@ -65,7 +65,7 @@ inline const std::array<Theme, 3>& themes()
             juce::Colour (0xff343439), juce::Colour (0xffEDEDED), juce::Colour (0xff908F96),
             juce::Colour (0xffF2A33C), juce::Colour (0xffCE6BF2), juce::Colour (0xff5BD98C),
             juce::Colour (0xffF2C14E), juce::Colour (0xffF2655B), juce::Colour (0xffF2A33C),
-            juce::Colour (0x55707078), juce::Colour (0x88F2A33C),
+            juce::Colour (0xA085858E), juce::Colour (0xC0F2A33C),
             { juce::Colour (0xffF2A33C), juce::Colour (0xff5BD98C), juce::Colour (0xffCE6BF2),
               juce::Colour (0xff5BB8D9), juce::Colour (0xffF2655B), juce::Colour (0xffE0C341),
               juce::Colour (0xffCE6BF2), juce::Colour (0xff9AD95B) }

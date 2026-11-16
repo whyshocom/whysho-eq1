@@ -53,6 +53,107 @@ static void renderShot (int w, int h, const juce::File& out, bool openLicense, i
     }
 }
 
+// The graph on its own, while audio plays: spectrum, dynamic bands, zoom range.
+// The audio goes through processBlock; when EQ1 is switched off on this machine
+// (trial over, not signed in) processBlock passes it through untouched, so the
+// analyzer taps are then fed directly, to still show the spectrum drawing.
+static void renderAnalyzer (const juce::File& out, int themeIndex, int dbRange = 12, int analyzerSource = 3, float gainScale = 1.0f)
+{
+    using namespace wsho;
+    WhyshoEQAudioProcessor proc;
+    proc.enableAllBuses();      // the sidechain input too
+    proc.prepareToPlay (48000.0, 512);
+    gui::setThemeIndex (themeIndex);
+
+    auto set = [&] (const juce::String& id, float v)
+    { if (auto* p = proc.state().getParameter (id)) p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+    for (int i = 0; i < 6; ++i) set (pid::band (i, pid::on), 1.0f);
+    set (pid::band (0, pid::freq), 45.0f);    // high-pass (no gain), dynamic
+    set (pid::band (0, pid::dyn), 1.0f);     set (pid::band (0, pid::dynThresh), -50.0f);
+    set (pid::band (1, pid::freq), 110.0f);  set (pid::band (1, pid::gain), 3.5f);
+    set (pid::band (2, pid::freq), 450.0f);  set (pid::band (2, pid::gain), -4.0f);
+    set (pid::band (3, pid::freq), 1600.0f); set (pid::band (3, pid::gain), 2.5f);    // dynamic bell, cutting
+    set (pid::band (3, pid::dyn), 1.0f);     set (pid::band (3, pid::dynThresh), -50.0f);
+    set (pid::band (4, pid::freq), 5200.0f); set (pid::band (4, pid::gain), 8.0f);    // off the top at +/-6 dB
+    set (pid::band (5, pid::freq), 12000.0f);set (pid::band (5, pid::gain), -2.0f);
+    set (pid::band (5, pid::dyn), 1.0f);     set (pid::band (5, pid::dynThresh), -50.0f);
+    set (pid::band (5, pid::dynRange), 5.0f);                                         // dynamic shelf, boosting
+    set (pid::analyzer, (float) analyzerSource);
+    set (pid::gainScale, gainScale);
+    proc.state().state.setProperty ("dbRange", dbRange, nullptr);
+
+    gui::AnalyzerComponent graph (proc);
+    graph.setBounds (0, 0, 1004, 360);
+    graph.setSelectedBand (3);
+
+    // About 2.5 s of pink noise plus a -12 dBFS 1 kHz sine; a quieter, duller copy
+    // for the sidechain (and for the post tap when it has to be fed directly).
+    const bool feedTaps = ! proc.license().unlocked();
+    juce::AudioBuffer<float> buf (proc.getTotalNumInputChannels(), 512);
+    juce::MidiBuffer midi;
+    juce::Random rng (7);
+    float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f, dull = 0.0f;
+    double phase = 0.0;
+    for (int frame = 0; frame < 60; ++frame)
+    {
+        for (int block = 0; block < 4; ++block)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+            {
+                const float white = rng.nextFloat() * 2.0f - 1.0f;      // Paul Kellet's economy pink filter
+                b0 = 0.99765f * b0 + white * 0.0990460f;
+                b1 = 0.96300f * b1 + white * 0.2965164f;
+                b2 = 0.57000f * b2 + white * 1.0526913f;
+                const float s = (b0 + b1 + b2 + white * 0.1848f) * 0.05f + 0.2512f * (float) std::sin (phase);
+                phase += juce::MathConstants<double>::twoPi * 1000.0 / 48000.0;
+                dull += 0.2f * (s - dull);
+                for (int c = 0; c < buf.getNumChannels(); ++c) buf.setSample (c, i, c < 2 ? s : dull * 0.5f);
+                if (feedTaps)
+                {
+                    if (analyzerSource == 1 || analyzerSource == 3) proc.preAnalyzer().push (s);
+                    if (analyzerSource == 2 || analyzerSource == 3) proc.postAnalyzer().push (dull);
+                    if (analyzerSource == 4)                        proc.scAnalyzer().push (dull * 0.5f);
+                }
+            }
+            proc.processBlock (buf, midi);
+        }
+        graph.createComponentSnapshot (graph.getLocalBounds());   // offscreen, each paint is an analyzer frame
+    }
+
+    auto img = graph.createComponentSnapshot (graph.getLocalBounds(), false, 2.0f);
+    out.deleteFile();
+    juce::FileOutputStream os (out);
+    if (os.openedOk()) { juce::PNGImageFormat png; png.writeImageToStream (img, os); }
+    std::cout << "wrote " << out.getFullPathName() << (feedTaps ? " (EQ1 is switched off here: taps fed directly)" : "") << "\n";
+}
+
+// What the analyzer reads for a -12 dBFS 1 kHz sine, at each FFT size.
+static void measureAnalyzer()
+{
+    for (double sr : { 44100.0, 48000.0, 96000.0, 192000.0 })
+    {
+        wsho::dsp::SpectrumAnalyzer an;
+        an.prepare (sr);
+        an.render();
+        double phase = 0.0;
+        for (int hop = 0; hop < 200; ++hop)
+        {
+            for (int i = 0; i < an.hopSize(); ++i)
+            {
+                an.push (0.2512f * (float) std::sin (phase));
+                phase += juce::MathConstants<double>::twoPi * 1000.0 / sr;
+            }
+            an.render();
+        }
+        const auto& lv = an.levels();
+        const auto peak = std::max_element (lv.begin(), lv.end());
+        const int i = (int) (peak - lv.begin());
+        std::cout << sr << " Hz: FFT " << an.fftSize() << ", hop " << an.hopSize() << ", bin " << sr / an.fftSize()
+                  << " Hz, " << sr / an.hopSize() << " frames/s; -12 dBFS 1 kHz sine reads " << *peak
+                  << " dB at " << wsho::dsp::SpectrumAnalyzer::pointFreq (i) << " Hz\n";
+    }
+}
+
 int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI gui;
@@ -66,10 +167,23 @@ int main (int argc, char** argv)
     }
     renderShot (940, 580, dir.getChildFile ("eq1-paper-min.png"), false, 0);   // smallest allowed size
 
+    // The graph with audio playing, in each theme: pre+post, then the sidechain; then
+    // the other zoom ranges, and Scale at 50% (the nodes must stay on the curve).
+    for (int t = 0; t < 3; ++t)
+    {
+        renderAnalyzer (dir.getChildFile (juce::String ("graph-") + names[t] + ".png"), t);
+        renderAnalyzer (dir.getChildFile (juce::String ("graph-") + names[t] + "-sidechain.png"), t, 12, 4);
+    }
+    renderAnalyzer (dir.getChildFile ("graph-paper-6db.png"),  0, 6);
+    renderAnalyzer (dir.getChildFile ("graph-paper-30db.png"), 0, 30);
+    renderAnalyzer (dir.getChildFile ("graph-paper-scale50.png"), 0, 12, 1, 0.5f);
+    renderAnalyzer (dir.getChildFile ("graph-midnight-post.png"), 1, 12, 2);
+
     // Optional extra states (they touch this machine's real license state / the network):
     //   --signin   the "approve this code" screen, from a real sign-in start
     //   --expired  the locked screen after the trial; the trial is restarted afterwards
     const juce::StringArray args (argv + 1, argc - 1);
+    if (args.contains ("--measure")) measureAnalyzer();
     if (args.contains ("--signin"))
         renderShot (0, 0, dir.getChildFile ("eq1-paper-signin.png"), true, 0, true);
     if (args.contains ("--expired"))

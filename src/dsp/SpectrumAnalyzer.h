@@ -2,74 +2,98 @@
 #include <juce_dsp/juce_dsp.h>
 #include <atomic>
 #include <array>
+#include <memory>
+#include <vector>
 
 namespace wsho::dsp
 {
-// Lock-free-ish FFT analyzer. Audio thread pushes mono samples; GUI thread
-// pulls a smoothed magnitude curve. One instance per tap (pre / post / SC).
+// FFT analyzer, one instance per tap (pre / post / sidechain).
+//
+// The audio thread only writes samples into a ring buffer (push / pushBlock: no
+// locks, no allocation). The GUI thread calls render(), which takes the newest
+// FFT-size window off the ring whenever another hop of audio has arrived and
+// turns it into a display curve: numPoints levels, evenly spaced on a
+// log-frequency axis from minHz to maxHz.
+//
+// FFT: Hann window, 75% overlap. 8192 points up to 48 kHz, 16384 from 88.2 kHz,
+// 32768 from 176.4 kHz, so a bin is always 5.4 .. 5.9 Hz wide.
+//
+// Level reference: bins are amplitude-normalised, 0 dB = a full-scale sine
+// (peak 1.0) sitting on a bin, whatever the FFT size. The curve is then the
+// mean power over smoothingOctaves around each point (between neighbouring bins
+// it is interpolated instead, where bins are wider than that), so broadband
+// material keeps its per-bin level while a pure tone, being narrower than the
+// smoothing band, reads lower by about 10*log10 (bins in the band / 1.5):
+// a 1 kHz sine reads 12 dB under its level.
+// Finally the curve is tilted by tiltDbPerOctave around tiltPivotHz.
 class SpectrumAnalyzer
 {
 public:
-    static constexpr int fftOrder = 11;            // 2048
-    static constexpr int fftSize  = 1 << fftOrder;
-    static constexpr int numBins  = fftSize / 2;
+    static constexpr float minHz = 20.0f, maxHz = 22000.0f;   // span of the display curve
+    static constexpr int   numPoints = 512;                   // about 50 per octave
 
-    SpectrumAnalyzer() : fft (fftOrder), window (fftSize, juce::dsp::WindowingFunction<float>::hann)
+    static constexpr float tiltDbPerOctave  = 4.5f;           // makes typical programme material look level
+    static constexpr float tiltPivotHz      = 1000.0f;
+    static constexpr float smoothingOctaves = 1.0f / 6.0f;
+    static constexpr float attackSeconds    = 0.02f;          // ballistics (time constants, in dB)
+    static constexpr float releaseSeconds   = 0.35f;
+    static constexpr float floorDb          = -120.0f;
+
+    static int fftOrderFor (double sampleRate) noexcept
     {
-        smoothed.fill (-120.0f);
+        return sampleRate >= 176400.0 ? 15 : sampleRate >= 88200.0 ? 14 : 13;
     }
 
-    void prepare (double sampleRate) { fs = sampleRate; fifoIndex = 0; blockReady = false; }
+    SpectrumAnalyzer();
 
+    // Any thread. The GUI side picks the new rate up on its next render().
+    void prepare (double sampleRate) noexcept { fs.store (sampleRate, std::memory_order_relaxed); }
+
+    // ---- audio thread ----
     inline void push (float sample) noexcept
     {
-        if (fifoIndex == fftSize)
-        {
-            if (! blockReady.load (std::memory_order_acquire))
-            {
-                juce::FloatVectorOperations::copy (fftReady.data(), fifo.data(), fftSize);
-                blockReady.store (true, std::memory_order_release);
-            }
-            fifoIndex = 0;
-        }
-        fifo[(size_t) fifoIndex++] = sample;
+        const auto w = writePos.load (std::memory_order_relaxed);
+        ring[(size_t) (w & ringMask)] = sample;
+        writePos.store (w + 1, std::memory_order_release);
     }
 
     void pushBlock (const float* data, int n) noexcept { for (int i = 0; i < n; ++i) push (data[i]); }
 
-    // GUI thread: returns true if a new curve was produced.
-    bool render (float decayDbPerBlock = 6.0f)
+    // ---- GUI thread ----
+    // Returns true if the curve changed (a new FFT frame was available).
+    bool render();
+
+    // Forget the displayed curve and wait for fresh audio (the tap was just switched on).
+    void clear();
+
+    // Tilted dB, one value per display point.
+    const std::array<float, numPoints>& levels() const noexcept { return display; }
+    static float pointFreq (int i) noexcept
     {
-        if (! blockReady.load (std::memory_order_acquire)) return false;
-        std::array<float, fftSize * 2> fftData {};
-        juce::FloatVectorOperations::copy (fftData.data(), fftReady.data(), fftSize);
-        blockReady.store (false, std::memory_order_release);
-
-        window.multiplyWithWindowingTable (fftData.data(), fftSize);
-        fft.performFrequencyOnlyForwardTransform (fftData.data());
-
-        const float norm = 2.0f / (float) fftSize;
-        for (int i = 0; i < numBins; ++i)
-        {
-            const float db = juce::Decibels::gainToDecibels (fftData[(size_t) i] * norm, -120.0f);
-            float& s = smoothed[(size_t) i];
-            s = db > s ? db : juce::jmax (db, s - decayDbPerBlock); // fast attack, slow release
-        }
-        return true;
+        return minHz * std::pow (maxHz / minHz, (float) i / (float) (numPoints - 1));
     }
 
-    float binToFreq (int bin) const { return (float) bin * (float) fs / (float) fftSize; }
-    const std::array<float, numBins>& magnitudes() const { return smoothed; }
+    int fftSize() const noexcept { return size; }
+    int hopSize() const noexcept { return size / 4; }
 
 private:
-    juce::dsp::FFT fft;
-    juce::dsp::WindowingFunction<float> window;
-    std::array<float, fftSize> fifo {};
-    std::array<float, fftSize> fftReady {};
-    std::array<float, numBins> smoothed {};
-    int fifoIndex = 0;
-    std::atomic<bool> blockReady { false };
-    double fs = 44100.0;
+    void configure (int order, double sampleRate);
+
+    // The ring holds twice the largest FFT, so the window being read is never
+    // the part being written.
+    static constexpr uint32_t ringSize = 1u << 16, ringMask = ringSize - 1;
+    std::vector<float> ring;
+    std::atomic<uint32_t> writePos { 0 };
+    std::atomic<double> fs { 44100.0 };
+
+    // GUI-thread state
+    std::unique_ptr<juce::dsp::FFT> fft;
+    std::vector<float> window, fftData, binDb;
+    std::vector<double> cumulative;          // running sum of bin powers
+    std::array<float, numPoints> display {};
+    int order = 0, size = 0;
+    double rate = 0.0;
+    uint32_t readPos = 0;
 };
 
 } // namespace wsho::dsp
