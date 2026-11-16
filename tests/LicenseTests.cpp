@@ -6,6 +6,8 @@
 #include <juce_events/juce_events.h>
 #include "licensing/AccountClient.h"
 #include "licensing/LicenseStore.h"
+#include "licensing/LicensePublicKey.h"
+#include "licensing/MachineId.h"
 #include <iostream>
 #include <map>
 
@@ -229,9 +231,51 @@ static void testLive()
     CHECK (client.pollLogin ("bogus-device-code").state == AccountClient::Poll::expired);
 }
 
+// --verify-signing: the whole chain against the real site, with a real account.
+// Starts a browser sign-in, waits for you to approve the code on whysho.com, asks
+// for the license and checks the site's signature with the key compiled into EQ1.
+// Signs the test session out again afterwards.
+static int verifySigning()
+{
+    AccountClient client;
+    const auto start = client.startLogin ("whysho EQ1 signing check");
+    if (! start.ok) { std::cout << "could not reach whysho.com\n"; return 1; }
+    std::cout << "APPROVE THIS CODE: " << start.userCode << "\n  at " << AccountClient::activationPageUrl (start.userCode)
+              << "\n  (waiting up to " << start.expiresInSeconds / 60 << " minutes)\n" << std::flush;
+
+    juce::String session;
+    for (int waited = 0; waited < start.expiresInSeconds && session.isEmpty(); waited += start.intervalSeconds)
+    {
+        juce::Thread::sleep (start.intervalSeconds * 1000);
+        const auto poll = client.pollLogin (start.deviceCode);
+        if (poll.state == AccountClient::Poll::approved) session = poll.token;
+        if (poll.state == AccountClient::Poll::expired) break;
+    }
+    if (session.isEmpty()) { std::cout << "RESULT: the code was not approved in time\n"; return 1; }
+
+    const juce::String nonce = juce::Uuid().toString();
+    const auto answer = client.checkLicense (session, getMachineId(), nonce);
+    client.logout (session);
+
+    if (answer.state == AccountClient::Answer::unsignedAnswer)
+    { std::cout << "RESULT: the site answered WITHOUT a signature (LICENSE_SIGNING_KEY is not set on the host)\n"; return 1; }
+    if (answer.state != AccountClient::Answer::answered)
+    { std::cout << "RESULT: no usable answer from the site\n"; return 1; }
+
+    const auto lic = verifyLicenseToken (answer.license, getMachineId(), kLicensePublicKey);
+    if (! lic.valid || lic.nonce != nonce)
+    { std::cout << "RESULT: the site signed its answer, but NOT with the key compiled into EQ1\n"; return 1; }
+
+    std::cout << "RESULT: signature verified with EQ1's embedded key. This account "
+              << (lic.owned ? "OWNS" : "does not own") << " EQ1; answer valid for "
+              << (lic.expiresAt - lic.issuedAt) / kDay << " days offline.\n";
+    return 0;
+}
+
 int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI init;
+    if (argc > 1 && juce::String (argv[1]) == "--verify-signing") return verifySigning();
     testVerdicts();
     testSignedLicense();
     testStore();
