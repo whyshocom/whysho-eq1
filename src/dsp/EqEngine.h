@@ -47,6 +47,11 @@ public:
 
     EqBand& band (int i) { return bands[(size_t) i]; }
 
+    // ---- live dynamics read-out for the GUI (lock-free, any thread) ----------
+    // How far band i's dynamics are currently engaged, 0 (idle) .. 1 (fully, i.e.
+    // the whole Range is applied). 0 when the band is off or not dynamic.
+    float dynamicAmount (int i) const noexcept { return dynAmount[(size_t) i].load (std::memory_order_relaxed); }
+
 private:
     void processChunk (juce::AudioBuffer<float>& main, const juce::AudioBuffer<float>& side);
     void processIIR (juce::AudioBuffer<float>& osMain, const juce::AudioBuffer<float>& osSide, double fsNow);
@@ -54,6 +59,7 @@ private:
     void generateImpulseResponse (juce::AudioBuffer<float>& ir, double fsNow);
 
     std::array<EqBand, kNumBands> bands;
+    std::array<std::atomic<float>, kNumBands> dynAmount {};   // written by the audio thread once per block
     EngineParams params;
     bool paramsDirty = true;
     bool linearDirty = true;
