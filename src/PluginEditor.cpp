@@ -59,6 +59,7 @@ WhyshoEQAudioProcessorEditor::WhyshoEQAudioProcessorEditor (WhyshoEQAudioProcess
     addAndMakeVisible (brand);
 
     addAndMakeVisible (analyzer);
+    analyzer.setComponentID ("analyzer");
     addAndMakeVisible (bandEditor);
     analyzer.onBandSelected = [this] (int b) { bandEditor.setBand (b); };
 

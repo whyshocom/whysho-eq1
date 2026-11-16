@@ -134,6 +134,62 @@ static void renderAnalyzer (const juce::File& out, int themeIndex, int dbRange =
     std::cout << "wrote " << out.getFullPathName() << (feedTaps ? " (EQ1 is switched off here: taps fed directly)" : "") << "\n";
 }
 
+// --hero: the whole window in use, for the website: a factory preset loaded and
+// music-like audio running, at the editor's default size (1x, like the other
+// plugins' product shots).
+static void renderHero (const juce::File& out, const juce::String& preset, int selectBand)
+{
+    using namespace wsho;
+    WhyshoEQAudioProcessor proc;
+    proc.prepareToPlay (48000.0, 512);
+    gui::loadThemePreference();
+    gui::setThemeIndex (0);
+    proc.presetManager().applyFactory (preset);
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
+    ed->setVisible (true);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (700);    // parameters reach the UI
+    if (auto* graph = dynamic_cast<gui::AnalyzerComponent*> (ed->findChildWithID ("analyzer")))
+    {
+        graph->setSelectedBand (selectBand);
+        if (graph->onBandSelected) graph->onBandSelected (selectBand);
+    }
+
+    // Pink noise with a slow swell and a few tones standing in for a mix.
+    juce::AudioBuffer<float> buf (2, 512);
+    juce::MidiBuffer midi;
+    juce::Random rng (11);
+    float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f;
+    double t = 0.0;
+    for (int frame = 0; frame < 70; ++frame)
+    {
+        for (int block = 0; block < 4; ++block)
+        {
+            for (int i = 0; i < buf.getNumSamples(); ++i, t += 1.0 / 48000.0)
+            {
+                const float white = rng.nextFloat() * 2.0f - 1.0f;
+                b0 = 0.99765f * b0 + white * 0.0990460f;
+                b1 = 0.96300f * b1 + white * 0.2965164f;
+                b2 = 0.57000f * b2 + white * 1.0526913f;
+                const double tau = juce::MathConstants<double>::twoPi * t;
+                const float tones = 0.20f * (float) std::sin (tau * 82.0) + 0.10f * (float) std::sin (tau * 247.0)
+                                  + 0.07f * (float) std::sin (tau * 1320.0) + 0.05f * (float) std::sin (tau * 6200.0);
+                const float s = (b0 + b1 + b2 + white * 0.1848f) * 0.07f + tones;
+                buf.setSample (0, i, s);
+                buf.setSample (1, i, s);
+            }
+            proc.processBlock (buf, midi);
+        }
+        ed->createComponentSnapshot (ed->getLocalBounds());   // each offscreen paint is an analyzer frame
+    }
+
+    auto img = ed->createComponentSnapshot (ed->getLocalBounds(), false, 1.0f);
+    out.deleteFile();
+    juce::FileOutputStream os (out);
+    if (os.openedOk()) { juce::PNGImageFormat png; png.writeImageToStream (img, os); }
+    std::cout << "wrote " << out.getFullPathName() << " (" << img.getWidth() << "x" << img.getHeight() << ")\n";
+}
+
 // What the analyzer reads for a -12 dBFS 1 kHz sine, at each FFT size.
 static void measureAnalyzer()
 {
@@ -409,6 +465,12 @@ int main (int argc, char** argv)
     //   --signin   the "approve this code" screen, from a real sign-in start
     //   --expired  the locked screen after the trial; the trial is restarted afterwards
     const juce::StringArray args (argv + 1, argc - 1);
+    if (args.contains ("--hero"))
+    {
+        //   --hero     also the product shot for the website (eq1-hero.png)
+        renderHero (dir.getChildFile ("eq1-hero.png"), "Vocal Presence", 8);   // band 9, the presence bell
+        return 0;
+    }
     if (args.contains ("--measure")) measureAnalyzer();
     if (args.contains ("--dialogs"))
         for (int t = 0; t < 3; ++t)
