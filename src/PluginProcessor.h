@@ -27,7 +27,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override { return eqEngine.getTailSeconds(); }
     juce::AudioProcessorParameter* getBypassParameter() const override { return apvts.getParameter (pid::bypass); }
 
     int getNumPrograms() override { return 1; }
@@ -76,6 +76,23 @@ private:
 
     juce::AudioBuffer<float> sidechainCopy;
     bool scActive = false;
+
+    // The audio thread notices a latency change (phase mode, oversampling);
+    // the host is told from the message thread.
+    struct LatencyReporter final : private juce::AsyncUpdater
+    {
+        explicit LatencyReporter (WhyshoEQAudioProcessor& p) : proc (p) {}
+        ~LatencyReporter() override { cancelPendingUpdate(); }
+        using juce::AsyncUpdater::triggerAsyncUpdate;
+        void handleAsyncUpdate() override
+        {
+            proc.reportedLatency = proc.eqEngine.getLatencySamples();
+            proc.setLatencySamples (proc.reportedLatency);
+        }
+        WhyshoEQAudioProcessor& proc;
+    };
+    LatencyReporter latencyReporter { *this };
+    std::atomic<int> reportedLatency { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WhyshoEQAudioProcessor)
 };

@@ -48,7 +48,7 @@ void WhyshoEQAudioProcessor::cacheParamPointers()
 
 void WhyshoEQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    eqEngine.prepare (sampleRate, samplesPerBlock, 2);
+    eqEngine.prepare (sampleRate, samplesPerBlock, juce::jmax (1, getMainBusNumOutputChannels()));
     analyzerPre.prepare (sampleRate);
     analyzerPost.prepare (sampleRate);
     analyzerSC.prepare (sampleRate);
@@ -60,7 +60,8 @@ void WhyshoEQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     eqEngine.setParameters (buildSnapshot());
     eqEngine.snapSmoothers();
     // Switched off (trial over, no license) = plain passthrough, which has no latency.
-    setLatencySamples (licenseService->unlocked() ? eqEngine.getLatencySamples() : 0);
+    reportedLatency = licenseService->unlocked() ? eqEngine.getLatencySamples() : 0;
+    setLatencySamples (reportedLatency);
 }
 
 bool WhyshoEQAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -161,8 +162,10 @@ void WhyshoEQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         analyzerSC.pushBlock (sidechainCopy.getReadPointer (0), juce::jmin (mainBuf.getNumSamples(), sidechainCopy.getNumSamples()));
 
     // ---- DSP ----
+    eqEngine.setNonRealtime (isNonRealtime());
     eqEngine.setParameters (buildSnapshot());
-    setLatencySamples (eqEngine.getLatencySamples());
+    if (eqEngine.getLatencySamples() != reportedLatency.load())
+        latencyReporter.triggerAsyncUpdate();       // the host hears it from the message thread
     if (scActive)
     {
         juce::AudioBuffer<float> sc (sidechainCopy.getArrayOfWritePointers(), 2, mainBuf.getNumSamples());
